@@ -37,6 +37,7 @@ end_time = None
 db_connection = None
 db_cursor = None
 
+common_tags = ['general','feature','important','regression','performance','usability']
 verbs = ['do','make','execute','select','count','process','insert','validate','verify','filter','magnify']
 words = ['abstraction','acetifier','acrodont','adenographical','advisableness','afterbreast','agrogeology',
          'albuminoscope','alkarsin','Alsophila','American','amphitheatral','anapnoic','angiography','annulation',
@@ -161,8 +162,7 @@ myinstance = %s()
 
 
 def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, test_validity = 1):
-    global db_cursor, verbs, words
-
+    global db_cursor, verbs, words, common_tags
 
     available_resources = db_cursor.execute(
                             "SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()").fetchall()
@@ -176,6 +176,7 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
         available_libraries = db_cursor.execute("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'").fetchall()
 
         tcfile = open("%s/T%d_CustomTests.txt" % (path, testfile_index+1),"w")
+        suite_tag = random.choice(common_tags)
         test_txt += "*** Test Cases ***\n"
         for tc in range(testcount):
             generate_error = False
@@ -199,7 +200,10 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
             available_keywords = db_cursor.execute("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()"
                                                     % selected_library).fetchall()
             kwlib = random.choice([selected_library, testlib, testlib + "xyz"])
-            test_txt += "%s\t[Documentation]\t%s\n" % (tc_name, "Test %d - %s" % (tc,strftime("%d.%m.%Y %H:%M:%S")))
+            test_txt += "%s\t[Documentation]\t%s" % (tc_name, "Test %d - %s\\n\\n%s" % (tc,strftime("%d.%m.%Y %H:%M:%S"),random.choice(words).strip()))
+            test_tag = random.choice(common_tags)
+            if test_tag != suite_tag and random.choice([1,2]) == 1:
+                test_txt += "\n\t[Tags]\t%s\n" % test_tag
 
             for i in range(avg_test_depth+random.choice([-1,0,1])):
                 kw1 = available_keywords.pop()
@@ -248,6 +252,7 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
                 settings_txt += "Library    %45s.py\n" % (testlib_value)
         settings_txt += "Library\tOperatingSystem\n"
         settings_txt += "Library\tString\n"
+        settings_txt += "Force Tags\t%s\n" % suite_tag
 
         for x in range(random.randint(0,2)):
             try:
