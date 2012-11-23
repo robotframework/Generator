@@ -6,7 +6,7 @@ setup(
     author='Mika Hänninen',
     author_email='mika.hanninen@gmail.com',
     packages=['generator'],
-    scripts=['generator/generator.py'],
+    scripts=['generator/rfgen.py'],
     download_url='https://github.com/robotframework/Generator/tarball/master',
     url='http://github.com/robotframework/Generator/',
     license='LICENSE.txt',
