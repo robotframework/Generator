@@ -312,7 +312,7 @@ if __name__ == '__main__':
 
     sys.path.insert(0, '.')
 
-    project_root_dir = os.path.join("./tmp/", options.dir)
+    project_root_dir = os.path.join("./tmp/", options.dir + "/testdir/")
     sys.path.append(project_root_dir)
     shutil.rmtree(project_root_dir, ignore_errors=True)
     print "Test project is created into directory (option 'd'): %s" % project_root_dir
