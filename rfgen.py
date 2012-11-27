@@ -150,7 +150,7 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
                 test_txt += "\n\t[Tags]\t%s\n" % test_tag
 
             for i in range(avg_test_depth+random.choice([-1,0,1])):
-                kw1 = available_keywords.pop()
+                kw1 = random.choice(available_keywords)
                 kw_library = kw1[2]
                 for key,val in libraries_in_use.iteritems():
                     if val == kw_library:
@@ -262,8 +262,6 @@ def main(path,testlibs_count=25,keyword_count=10,testsuite_count=30,tests_in_sui
 
     if avg_test_depth < 2:
         avg_test_depth = 2
-    elif avg_test_depth > 20:
-        avg_test_depth = 20
     if test_validity > 1:
         test_validity = 1
     elif test_validity < 0:
