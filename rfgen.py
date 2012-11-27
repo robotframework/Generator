@@ -298,7 +298,6 @@ def main(options = None):
     parser = create_options_parser()
     (options, args) = parser.parse_args()
 
-    print options
     if options.upgrade:
         rfgen_url = "https://raw.github.com/robotframework/Generator/master/rfgen.py"
         print "Updating rfgen.py from github."
