@@ -24,6 +24,7 @@ from sqlite3 import OperationalError
 import copy
 from time import strftime
 from optparse import OptionParser
+import urllib2
 
 ROOT = os.path.dirname(__file__)
 lib = os.path.join(ROOT, '..', 'lib')
@@ -264,8 +265,8 @@ resource files and test libraries. Test suites and tests are randomly marked wit
 You can define number of test cases in suites, resources in a resource files or keywords in a library."""
 
     parser = MyParser(description=desc, epilog=
-    """Examples:
-
+    """
+Examples:
     check_dell -c all
     check_dell -c fans memory voltage
     check_dell -s
@@ -274,7 +275,6 @@ You can define number of test cases in suites, resources in a resource files or 
     group1 = optparse.OptionGroup(parser, 'Test related options')
     group2 = optparse.OptionGroup(parser, 'Common options')
 
-    #parser = OptionParser()
     group1.add_option("-l", "--libs", dest="libs",help="Number of test libraries [default: %default]", default=5)
     group1.add_option("-k", "--keywords", dest="keywords",help="Number of keywords in a test library [default: %default]", default=10)
     group1.add_option("-s", "--suites", dest="suites",help="Number of test suites  [default: %default]", default=1)
@@ -284,6 +284,7 @@ You can define number of test cases in suites, resources in a resource files or 
     group1.add_option("-v", "--validity", dest="validity",help="Validity of test cases (1...0). To have ~80% passes give 0.8.  [default: %default]", default=1)
     group1.add_option("-e", "--testdepth", dest="testdepth", help="Average number of steps in a test case (2..)  [default: %default]", default=3)
     group2.add_option("-d", "--dir", dest="dir",help="Target directory for the test project [default: %default]", default="theproject")
+    group2.add_option("-u", "--upgrade", help="Upgrade rfgen.py from the github", action="store_true", dest="upgrade", default=False)
 
     parser.add_option_group(group1)
     parser.add_option_group(group2)
@@ -294,15 +295,26 @@ You can define number of test cases in suites, resources in a resource files or 
 def main(options = None):
     global db_connection, db_cursor, words
 
-    if options is None:
-        sys.exit("Error: Did not receive any options")
+    parser = create_options_parser()
+    (options, args) = parser.parse_args()
+
+    print options
+    if options.upgrade:
+        rfgen_url = "https://raw.github.com/robotframework/Generator/master/rfgen.py"
+        print "Updating rfgen.py from github."
+        f = open('rfgen.py','wb')
+        f.write(urllib2.urlopen(rfgen_url).read())
+        f.close()
+        print "Update done."
+        sys.exit(0)
+
     path = options.dir or sys.exit("Error: No path was defined")
-    testlibs_count = int(options.libs) or 25
+    testlibs_count = int(options.libs) or 5
     keyword_count = int(options.keywords) or 10
-    testsuite_count = int(options.suites) or 30
-    tests_in_suite = int(options.tests) or 40
-    resource_count = int(options.resourcefiles) or 10
-    resources_in_file = int(options.resources) or 100
+    testsuite_count = int(options.suites) or 1
+    tests_in_suite = int(options.tests) or 10
+    resource_count = int(options.resourcefiles) or 1
+    resources_in_file = int(options.resources) or 30
     avg_test_depth = int(options.testdepth) or 3
     test_validity= float(options.validity) or 1
 
@@ -419,9 +431,4 @@ words = ['abstraction','acetifier','acrodont','adenographical','advisableness','
 
 
 if __name__ == '__main__':
-    parser = create_options_parser()
-    (options, args) = parser.parse_args()
-
-    assert main(options)
-
-
+    main()
