@@ -1,7 +1,7 @@
 from distutils.core import setup
 
 setup(
-    name='generator',
+    name='rfgen',
     version='0.1.0',
     author='Mika Hänninen',
     author_email='mika.hanninen@gmail.com',
