@@ -13,6 +13,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 from math import ceil
+import optparse
 import os
 import random
 import shutil
@@ -256,9 +257,54 @@ def _create_test_project(thetestdir,testlibs_count=5,keyword_count=10,testsuite_
     _create_test_suite(thetestdir, filecount=testsuite_count, testcount=tests_in_suite, avg_test_depth=avg_test_depth,test_validity=test_validity)
 
 
-def main(path,testlibs_count=25,keyword_count=10,testsuite_count=30,tests_in_suite=40,resource_count=10,
-         resources_in_file=100,avg_test_depth=3,test_validity=1):
+def create_options_parser():
+    desc = """This script generates Robot Framework project structure. The structure contains test suites,
+resource files and test libraries. Test suites and tests are randomly marked with tags.
+
+You can define number of test cases in suites, resources in a resource files or keywords in a library."""
+
+    parser = MyParser(description=desc, epilog=
+    """Examples:
+
+    check_dell -c all
+    check_dell -c fans memory voltage
+    check_dell -s
+    """)
+
+    group1 = optparse.OptionGroup(parser, 'Test related options')
+    group2 = optparse.OptionGroup(parser, 'Common options')
+
+    #parser = OptionParser()
+    group1.add_option("-l", "--libs", dest="libs",help="Number of test libraries [default: %default]", default=5)
+    group1.add_option("-k", "--keywords", dest="keywords",help="Number of keywords in a test library [default: %default]", default=10)
+    group1.add_option("-s", "--suites", dest="suites",help="Number of test suites  [default: %default]", default=1)
+    group1.add_option("-t", "--tests", dest="tests",help="Number of tests in a suite  [default: %default]", default=10)
+    group1.add_option("-f", "--resourcefiles", dest="resourcefiles",help="Number of resource files.  [default: %default]", default=1)
+    group1.add_option("-r", "--resources", dest="resources",help="Number of resources in a file.  [default: %default]", default=30)
+    group1.add_option("-v", "--validity", dest="validity",help="Validity of test cases (1...0). To have ~80% passes give 0.8.  [default: %default]", default=1)
+    group1.add_option("-e", "--testdepth", dest="testdepth", help="Average number of steps in a test case (2..)  [default: %default]", default=3)
+    group2.add_option("-d", "--dir", dest="dir",help="Target directory for the test project [default: %default]", default="theproject")
+
+    parser.add_option_group(group1)
+    parser.add_option_group(group2)
+
+    return parser
+
+
+def main(options = None):
     global db_connection, db_cursor, words
+
+    if options is None:
+        sys.exit("Error: Did not receive any options")
+    path = options.dir or sys.exit("Error: No path was defined")
+    testlibs_count = int(options.libs) or 25
+    keyword_count = int(options.keywords) or 10
+    testsuite_count = int(options.suites) or 30
+    tests_in_suite = int(options.tests) or 40
+    resource_count = int(options.resourcefiles) or 10
+    resources_in_file = int(options.resources) or 100
+    avg_test_depth = int(options.testdepth) or 3
+    test_validity= float(options.validity) or 1
 
     if avg_test_depth < 2:
         avg_test_depth = 2
@@ -297,6 +343,21 @@ def main(path,testlibs_count=25,keyword_count=10,testsuite_count=30,tests_in_sui
     result = "PASS"
     return result != 'FAIL'
 
+
+class MyParser(optparse.OptionParser):
+    def format_epilog(self, formatter):
+        return self.epilog
+    def format_help(self, formatter=None):
+        if formatter is None:
+            formatter = self.formatter
+        result = []
+        if self.usage:
+            result.append(self.get_usage() + "\n")
+        if self.description:
+            result.append(self.format_description(formatter) + "\n")
+        result.append(self.format_option_help(formatter))
+        result.append(self.format_epilog(formatter))
+        return "".join(result)
 
 # Global variables
 start_time = None
@@ -358,21 +419,9 @@ words = ['abstraction','acetifier','acrodont','adenographical','advisableness','
 
 
 if __name__ == '__main__':
-    parser = OptionParser()
-    parser.add_option("-l", "--libs", dest="libs",help="Number of test libraries", default=5)
-    parser.add_option("-k", "--keywords", dest="keywords",help="Number of keywords in a test library", default=10)
-    parser.add_option("-s", "--suites", dest="suites",help="Number of test suites", default=1)
-    parser.add_option("-t", "--tests", dest="tests",help="Number of tests in a suite", default=10)
-    parser.add_option("-f", "--resourcefiles", dest="resourcefiles",help="Number of resource files", default=1)
-    parser.add_option("-r", "--resources", dest="resources",help="Number of resources in a file", default=30)
-    parser.add_option("-v", "--validity", dest="validity",help="Validity of test cases (1...0). To have ~80% passes give 0.8. Default 1.", default=1)
-    parser.add_option("-e", "--testdepth", dest="testdepth", help="Average number of steps in a test case (2..20)", default=3)
-    parser.add_option("-d", "--dir", dest="dir",help="Target directory for the test project", default="theproject")
+    parser = create_options_parser()
     (options, args) = parser.parse_args()
 
-    assert main(options.dir, testlibs_count=int(options.libs), keyword_count=int(options.keywords),
-        testsuite_count=int(options.suites), tests_in_suite=int(options.tests),
-        resource_count=int(options.resourcefiles), resources_in_file=int(options.resources),
-        avg_test_depth=int(options.testdepth), test_validity=float(options.validity))
+    assert main(options)
 
 
