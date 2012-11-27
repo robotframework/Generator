@@ -269,7 +269,15 @@ def main(path,testlibs_count=25,keyword_count=10,testsuite_count=30,tests_in_sui
     elif test_validity < 0:
         test_validity = 0
 
-    db_connection=sqlite3.connect(os.path.join(path, "testdata.db"))
+    project_root_dir = os.path.join("./tmp/", path + "/testdir/")
+    sys.path.append(project_root_dir)
+    shutil.rmtree(project_root_dir, ignore_errors=True)
+    print "Test project is created into directory (option 'd'): %s" % project_root_dir
+
+    if not os.path.exists(project_root_dir):
+        os.makedirs(project_root_dir)
+
+    db_connection=sqlite3.connect(os.path.join(project_root_dir, "testdata.db"))
     db_cursor=db_connection.cursor()
     try:
         db_cursor.execute('CREATE TABLE IF NOT EXISTS source (id INTEGER PRIMARY KEY, path TEXT, type TEXT)')
@@ -286,7 +294,7 @@ def main(path,testlibs_count=25,keyword_count=10,testsuite_count=30,tests_in_sui
     except OperationalError, err:
         print "DB error: ",err
 
-    _create_test_project(path,testlibs_count,keyword_count,testsuite_count,tests_in_suite,resource_count,
+    _create_test_project(project_root_dir,testlibs_count,keyword_count,testsuite_count,tests_in_suite,resource_count,
         resources_in_file,avg_test_depth,test_validity)
     result = "PASS"
     return result != 'FAIL'
@@ -364,22 +372,9 @@ if __name__ == '__main__':
     parser.add_option("-d", "--dir", dest="dir",help="Target directory for the test project", default="theproject")
     (options, args) = parser.parse_args()
 
-    sys.path.insert(0, '.')
+    assert main(options.dir, testlibs_count=int(options.libs), keyword_count=int(options.keywords),
+        testsuite_count=int(options.suites), tests_in_suite=int(options.tests),
+        resource_count=int(options.resourcefiles), resources_in_file=int(options.resources),
+        avg_test_depth=int(options.testdepth), test_validity=float(options.validity))
 
-    project_root_dir = os.path.join("./tmp/", options.dir + "/testdir/")
-    sys.path.append(project_root_dir)
-    shutil.rmtree(project_root_dir, ignore_errors=True)
-    print "Test project is created into directory (option 'd'): %s" % project_root_dir
 
-    if not os.path.exists(project_root_dir):
-        os.makedirs(project_root_dir)
-    try:
-        assert main(project_root_dir, testlibs_count=int(options.libs), keyword_count=int(options.keywords),
-            testsuite_count=int(options.suites), tests_in_suite=int(options.tests),
-            resource_count=int(options.resourcefiles), resources_in_file=int(options.resources),
-            avg_test_depth=int(options.testdepth), test_validity=float(options.validity))
-    finally:
-        #if len(args) >= 1 and ("del" in args):
-        #    shutil.rmtree(dir, ignore_errors=True)
-        #else:
-        print "Not removing directory: " + project_root_dir
