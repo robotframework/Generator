@@ -45,25 +45,21 @@ def _create_test_libraries(path, filecount = 10, keywords=10):
         libs.append(lib_name)
         db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','CUSTOMLIBRARY')" % lib_name)
         libfile = open("%s/%s.py" % (path,lib_name),"w")
-        lib_doc = '"""Library documentation:\n'\
-                  '\t%s"""' % lib_name
-        libfile.write(\
-            """
-            import os,time
+        lib_doc = '\t"""Library documentation:\n' + \
+                  '\t\t%s"""' % lib_name
+        libfile.write("import os,time\n" + \
+                    "class %s:\n" % lib_name + \
+                    "\tdef __init__(self):\n" + \
+                    "\t%s\n" % lib_doc)
 
-            class %s:
-                def __init__(self):
-                    %s
-            """ % (lib_name, lib_doc))
+        directory_looper = "\tfor dirname, dirnames, filenames in os.walk('.'):\n" + \
+                "\t\tfor subdirname in dirnames:\n" + \
+                "\t\t\tprint os.path.join(dirname, subdirname)\n" + \
+                "\t\tfor filename in filenames:\n" + \
+                "\t\t\tprint os.path.join(dirname, filename)\n"
+        sleeper = "time.sleep(1)\n"
 
-        directory_looper = """for dirname, dirnames, filenames in os.walk('.'):
-            for subdirname in dirnames:
-                print os.path.join(dirname, subdirname)
-            for filename in filenames:
-                print os.path.join(dirname, filename)"""
-        sleeper = "time.sleep(1)"
-
-        libfile.write("\t" + random.choice([directory_looper, sleeper]) + "\n")
+        libfile.write("\t\t%s" % random.choice([directory_looper, sleeper]) + "\n")
 
         temp_verb = copy.copy(verbs)
         counter = 1
@@ -76,17 +72,11 @@ def _create_test_libraries(path, filecount = 10, keywords=10):
             kw_name = verb + "_" + lib_main
             db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,lib_name))
             kw_doc = '"""Keyword documentation for %s"""' % kw_name
-            libfile.write(\
-                """
-                    def %s(self):
-                        %s
-                        %s
-                """ % (kw_name,kw_doc,random.choice([directory_looper, sleeper, "pass"])))
+            libfile.write("\tdef %s(self):\n" % kw_name + \
+                        "\t\t%s\n" % kw_doc + \
+                        "\t\t%s\n" % random.choice([directory_looper, sleeper, "pass\n"]))
 
-        libfile.write(\
-            """
-            myinstance = %s()
-            """ % lib_name)
+        libfile.write("myinstance = %s()" % lib_name)
         libfile.close()
 
     #initfile_lines = open("%s/__init__.txt" % path).readlines()
