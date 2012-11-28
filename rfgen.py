@@ -183,9 +183,9 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
         settings_txt += "*** Settings ***\n"
         for testlib_key,testlib_value in libraries_in_use.iteritems():
             if testlib_key != testlib_value:
-                settings_txt += "Library    %45s.py\tWITH NAME\t%s\n" % (testlib_value, testlib_key)
+                settings_txt += "Library\t%s.py\tWITH NAME\t%s\n" % (testlib_value, testlib_key)
             else:
-                settings_txt += "Library    %45s.py\n" % (testlib_value)
+                settings_txt += "Library\t%s.py\n" % (testlib_value)
         settings_txt += "Library\tOperatingSystem\n"
         settings_txt += "Library\tString\n"
         settings_txt += "Force Tags\t%s\n" % suite_tag
@@ -193,7 +193,7 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
         for x in range(random.randint(0,2)):
             try:
                 selected_resource = available_resources.pop()[0]
-                settings_txt += "Resource   %45s\n" % selected_resource
+                settings_txt += "Resource\t%s\n" % selected_resource
             except IndexError:
                 break
         settings_txt += "\n"
