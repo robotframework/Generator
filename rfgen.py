@@ -284,7 +284,7 @@ Examples:
     group1.add_option("-v", "--validity", dest="validity",help="Validity of test cases (1...0). To have ~80% passes give 0.8.  [default: %default]", default=1)
     group1.add_option("-e", "--testdepth", dest="testdepth", help="Average number of steps in a test case (2..)  [default: %default]", default=3)
     group2.add_option("-d", "--dir", dest="dir",help="Target directory for the test project [default: %default]", default="theproject")
-    group2.add_option("-u", "--upgrade", help="Upgrade rfgen.py from the github", action="store_true", dest="upgrade", default=False)
+    group2.add_option("-u", "--upgrade", help="Upgrade rfgen.py from the github. Remember 'pip install with --upgrade' if you have pip installation.", action="store_true", dest="upgrade", default=False)
 
     parser.add_option_group(group1)
     parser.add_option_group(group2)
@@ -299,6 +299,11 @@ def main(options = None):
     (options, args) = parser.parse_args()
 
     if options.upgrade:
+        try:
+            with open('rfgen.py') as f: pass
+        except IOError as e:
+            print "You probably want to do 'pip install git+https://github.com/robotframework/Generator'"
+            sys.exit(0)
         rfgen_url = "https://raw.github.com/robotframework/Generator/master/rfgen.py"
         print "Updating rfgen.py from github."
         f = open('rfgen.py','wb')
@@ -369,6 +374,7 @@ class MyParser(optparse.OptionParser):
         result.append(self.format_option_help(formatter))
         result.append(self.format_epilog(formatter))
         return "".join(result)
+
 
 # Global variables
 start_time = None

@@ -11,4 +11,9 @@ setup(
     license='LICENSE.txt',
     description='Script which generates a test project containing test libraries, test suites and resources.',
     long_description=open('README.md').read(),
+    entry_points = {
+        'console_scripts': [
+            'rfgen = rfgen:main_func'
+            ]
+        }
 )
