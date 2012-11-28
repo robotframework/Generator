@@ -356,7 +356,7 @@ class MyParser(optparse.OptionParser):
         if self.description:
             result.append(self.format_description(formatter) + "\n")
         result.append(self.format_option_help(formatter))
-        result.append(self.format_epilog(formatter))
+        #result.append(self.format_epilog(formatter))
         return "".join(result)
 
 
