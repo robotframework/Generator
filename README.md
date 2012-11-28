@@ -10,7 +10,7 @@ Use pip install git+git://github.com/robotframework/Generator
 
     pip install git+https://github.com/robotframework/Generator
 
-Use installed `rfgen.py`
+Use installed `rfgen`
 
 Uninstalling
 
