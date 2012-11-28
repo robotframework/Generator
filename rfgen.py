@@ -136,7 +136,7 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
             available_keywords = db_cursor.execute("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()"
                                                    % selected_library).fetchall()
             kwlib = random.choice([selected_library, testlib, testlib + "xyz"])
-            test_txt += "%s\t[Documentation]\t%s" % (tc_name, "Test %d - %s\\n\\n%s" % (tc,strftime("%d.%m.%Y %H:%M:%S"),random.choice(words).strip()))
+            test_txt += "%s\t[Documentation]\t%s\n" % (tc_name, "Test %d - %s\\n\\n%s" % (tc,strftime("%d.%m.%Y %H:%M:%S"),random.choice(words).strip()))
             test_tag = random.choice(common_tags)
             if test_tag != suite_tag and random.choice([1,2]) == 1:
                 test_txt += "\n\t[Tags]\t%s\n" % test_tag
