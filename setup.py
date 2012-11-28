@@ -13,7 +13,7 @@ setup(
     long_description=open('README.md').read(),
     entry_points = {
         'console_scripts': [
-            'rfgen = rfgen:main_func'
+            'rfgen = rfgen:main'
             ]
         }
 )
