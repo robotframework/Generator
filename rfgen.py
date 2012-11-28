@@ -171,6 +171,7 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
                 if argument:
                     if kw_action == "Count Files In Directory":
                         test_txt += "\t" + os.path.abspath(os.curdir)
+                        test_txt += "\tabsolute=True"
                     else:
                         test_txt += "\t" + argument
                 test_txt += "\n"
