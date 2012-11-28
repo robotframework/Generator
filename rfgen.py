@@ -264,13 +264,7 @@ resource files and test libraries. Test suites and tests are randomly marked wit
 
 You can define number of test cases in suites, resources in a resource files or keywords in a library."""
 
-    parser = MyParser(description=desc, epilog=
-    """
-Examples:
-    check_dell -c all
-    check_dell -c fans memory voltage
-    check_dell -s
-    """)
+    parser = MyParser(description=desc)
 
     group1 = optparse.OptionGroup(parser, 'Test related options')
     group2 = optparse.OptionGroup(parser, 'Common options')
