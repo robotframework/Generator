@@ -47,7 +47,7 @@ def _create_test_libraries(path, filecount = 10, keywords=10):
         libfile = open("%s/%s.py" % (path,lib_name),"w")
         lib_doc = '\t"""Library documentation:\n' + \
                   '\t\t%s"""' % lib_name
-        libfile.write("import os,time\n" + \
+        libfile.write("import os,time\n\n" + \
                     "class %s:\n" % lib_name + \
                     "\tdef __init__(self):\n" + \
                     "\t%s\n" % lib_doc)
