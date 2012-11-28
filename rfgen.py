@@ -52,11 +52,11 @@ def _create_test_libraries(path, filecount = 10, keywords=10):
                     "\tdef __init__(self):\n" + \
                     "\t%s\n" % lib_doc)
 
-        directory_looper = "\tfor dirname, dirnames, filenames in os.walk('.'):\n" + \
-                "\t\tfor subdirname in dirnames:\n" + \
-                "\t\t\tprint os.path.join(dirname, subdirname)\n" + \
-                "\t\tfor filename in filenames:\n" + \
-                "\t\t\tprint os.path.join(dirname, filename)\n"
+        directory_looper = "for dirname, dirnames, filenames in os.walk('.'):\n" + \
+                "\t\t\tfor subdirname in dirnames:\n" + \
+                "\t\t\t\tprint os.path.join(dirname, subdirname)\n" + \
+                "\t\t\tfor filename in filenames:\n" + \
+                "\t\t\t\tprint os.path.join(dirname, filename)\n"
         sleeper = "time.sleep(1)\n"
 
         libfile.write("\t\t%s" % random.choice([directory_looper, sleeper]) + "\n")
