@@ -202,13 +202,8 @@ def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, 
             except IndexError:
                 break
         # USE ALL EXTERNAL RESOURCES
-        # import max 10
-        imported_external_resources = 0
         for res in available_external_resources:
             settings_txt += "Resource\t%s\n" % res
-            imported_external_resources += 1
-            if imported_external_resources == 10:
-                break
         settings_txt += "\n"
         keywords_txt += "*** Keywords ***\n"
         keywords_txt += "My Keyword\n\tNo Operation\n"
@@ -273,9 +268,6 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
         extfile_ondisk.close()
         db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, final_external_filename))
         db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % final_external_filename)
-
-
-
 
 
 def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
