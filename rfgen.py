@@ -34,9 +34,10 @@ sys.path.insert(0, lib)
 sys.path.insert(0, src)
 
 
-def _create_test_libraries(path, filecount = 10, keywords=10):
+def _create_test_libraries(dirs, filecount = 10, keywords=10):
     global db_cursor, verbs, words
 
+    path = dirs[0]
     libs = []
 
     for x in range(filecount):
@@ -97,11 +98,14 @@ def _create_test_libraries(path, filecount = 10, keywords=10):
 #fo.close()
 
 
-def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, test_validity = 1):
+def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, test_validity = 1):
     global db_cursor, verbs, words, common_tags
 
+    path = dirs[0]
     available_resources = db_cursor.execute(
         "SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()").fetchall()
+    available_external_resources = db_cursor.execute(
+        "SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()").fetchall()
     for testfile_index in range(filecount):
         libraries_in_use = {}
         resources_in_use = []
@@ -197,6 +201,9 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
                 settings_txt += "Resource\t%s\n" % selected_resource
             except IndexError:
                 break
+        # USE ALL EXTERNAL RESOURCES
+        for res in available_external_resources:
+            settings_txt += "Resource\t%s\n" % res
         settings_txt += "\n"
         keywords_txt += "*** Keywords ***\n"
         keywords_txt += "My Keyword\n\tNo Operation\n"
@@ -206,11 +213,22 @@ def _create_test_suite(path, filecount = 1, testcount = 20, avg_test_depth = 5, 
         tcfile.close()
 
 
-def _create_test_resources(path, resources_in_file, resource_count, subdir = ""):
+def _create_test_resources(dirs, resource_files, resources_in_file, subdir = ""):
     global db_cursor, verbs, words
 
-    for resfile_index in range(resources_in_file):
+    path = dirs[0]
+    ext_dir = dirs[1]
+    if not os.path.exists(os.path.split(ext_dir)[0]):
+        os.makedirs(os.path.split(ext_dir)[0])
+
+    static_external_resource_filename = "static_external_resource.txt"
+    static_external_resource = open(ext_dir + static_external_resource_filename, "w")
+    static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
+    static_external_resource.close()
+
+    for resfile_index in range(resource_files):
         basename = "R%d_Resource.txt" % (resfile_index+1)
+        external_resource_path = "%s%s" % (ext_dir, "ext_" + basename)
         if subdir != "":
             rf_resource_name = subdir + "${/}" + basename
             fullpath = path + os.sep + subdir + os.sep
@@ -221,18 +239,27 @@ def _create_test_resources(path, resources_in_file, resource_count, subdir = "")
             rf_resource_name = basename
             resfile_ondisk = open("%s%s" % (path + os.sep, basename) ,"w")
         content = "*** Settings ***\n"
+        if resfile_index % 2 == 0:
+            content += "Resource\t" + static_external_resource_filename + "\n"
         #available_keywords = db_cursor.execute("SELECT * FROM keywords ORDER BY RANDOM()").fetchall()
         content += "\n*** Variables ***\n"
-        for x in range(resource_count):
+        for x in range(resources_in_file):
             content += "%-25s%10s%d\n" % ("${%s%d}" % (random.choice(words).strip().capitalize(),x),"",
                                           random.randint(1,1000))
         content += "\n*** Keywords ***\n"
+        content += "User Kw %d\n\tNo Operation" % (resfile_index+1)
+
+        if resfile_index % 2 == 0:
+            extfile_ondisk = open(external_resource_path, "w")
+            extfile_ondisk.write(content)
+            extfile_ondisk.close()
+            db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % external_resource_path)
         resfile_ondisk.write(content)
         resfile_ondisk.close()
         db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % rf_resource_name)
 
 
-def _create_test_project(thetestdir,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
+def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
                          resource_count=10,resources_in_file=20,avg_test_depth=5,test_validity=1):
     print """Generating test project with following settings
     %d test libraries (option 'l')
@@ -244,9 +271,9 @@ def _create_test_project(thetestdir,testlibs_count=5,keyword_count=10,testsuite_
     %d resources per resource file (option 'r')""" % (testlibs_count, keyword_count, testsuite_count,
                                                       tests_in_suite, avg_test_depth, resource_count, resources_in_file)
 
-    _create_test_libraries(thetestdir, filecount=testlibs_count, keywords=keyword_count)
-    _create_test_resources(thetestdir,subdir="resources", resources_in_file=resource_count,resource_count=resources_in_file)
-    _create_test_suite(thetestdir, filecount=testsuite_count, testcount=tests_in_suite, avg_test_depth=avg_test_depth,test_validity=test_validity)
+    _create_test_libraries(dirs, filecount=testlibs_count, keywords=keyword_count)
+    _create_test_resources(dirs,subdir="resources", resource_files=resource_count, resources_in_file=resources_in_file)
+    _create_test_suite(dirs, filecount=testsuite_count, testcount=tests_in_suite, avg_test_depth=avg_test_depth,test_validity=test_validity)
 
 
 def create_options_parser():
@@ -315,8 +342,10 @@ def main(options = None):
         test_validity = 0
 
     project_root_dir = os.path.join("./tmp/", path + "/testdir/")
+    external_resources_dir = "./tmp/ext/"
     sys.path.append(project_root_dir)
     shutil.rmtree(project_root_dir, ignore_errors=True)
+    shutil.rmtree(external_resources_dir, ignore_errors=True)
     print "Test project is created into directory (option 'd'): %s" % project_root_dir
 
     if not os.path.exists(project_root_dir):
@@ -339,7 +368,7 @@ def main(options = None):
     except OperationalError, err:
         print "DB error: ",err
 
-    _create_test_project(project_root_dir,testlibs_count,keyword_count,testsuite_count,tests_in_suite,resource_count,
+    _create_test_project([project_root_dir,external_resources_dir],testlibs_count,keyword_count,testsuite_count,tests_in_suite,resource_count,
         resources_in_file,avg_test_depth,test_validity)
     result = "PASS"
     return result != 'FAIL'
