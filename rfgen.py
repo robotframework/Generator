@@ -227,7 +227,7 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
     static_external_resource.close()
 
     external_resource_path = "%s%s" % (ext_dir, "ext_R%d_Resource.txt")
-    external_resource_path_for_import = "%s%s%s" % (".." + os.sep, ".." + os.sep, "ext_R%d_Resource.txt")
+    external_resource_path_for_import = "%s%s%s%s" % (".." + os.sep, ".." + os.sep, "ext" + os.sep, "ext_R%d_Resource.txt")
     for resfile_index in range(resource_files):
         basename = "R%d_Resource.txt" % (resfile_index+1)
 
