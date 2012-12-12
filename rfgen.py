@@ -356,7 +356,7 @@ def main(options = None):
         test_validity = 0
 
     project_root_dir = os.path.join("./tmp/", path + "/testdir/")
-    external_resources_dir = "./tmp/ext/"
+    external_resources_dir = "../../ext/"
     sys.path.append(project_root_dir)
     shutil.rmtree(project_root_dir, ignore_errors=True)
     shutil.rmtree(external_resources_dir, ignore_errors=True)
