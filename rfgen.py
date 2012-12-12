@@ -213,7 +213,7 @@ def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, 
         tcfile.close()
 
 
-def _create_test_resources(dirs, resource_files, resources_in_file, subdir = ""):
+def _create_test_resources(dirs, resource_files, resources_in_file, external_resources, subdir = ""):
     global db_cursor, verbs, words
 
     path = dirs[0]
@@ -226,9 +226,10 @@ def _create_test_resources(dirs, resource_files, resources_in_file, subdir = "")
     static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
     static_external_resource.close()
 
+    external_resource_path = "%s%s" % (ext_dir, "ext_R%d_Resource.txt")
     for resfile_index in range(resource_files):
         basename = "R%d_Resource.txt" % (resfile_index+1)
-        external_resource_path = "%s%s" % (ext_dir, "ext_" + basename)
+
         if subdir != "":
             rf_resource_name = subdir + "${/}" + basename
             fullpath = path + os.sep + subdir + os.sep
@@ -239,28 +240,40 @@ def _create_test_resources(dirs, resource_files, resources_in_file, subdir = "")
             rf_resource_name = basename
             resfile_ondisk = open("%s%s" % (path + os.sep, basename) ,"w")
         content = "*** Settings ***\n"
-        if resfile_index % 2 == 0:
-            content += "Resource\t" + static_external_resource_filename + "\n"
+        if external_resources > 0:
+            content += "Resource\t" + (external_resource_path % (random.randint(0,external_resources) + 1)) + "\n"
         #available_keywords = db_cursor.execute("SELECT * FROM keywords ORDER BY RANDOM()").fetchall()
         content += "\n*** Variables ***\n"
         for x in range(resources_in_file):
             content += "%-25s%10s%d\n" % ("${%s%d}" % (random.choice(words).strip().capitalize(),x),"",
                                           random.randint(1,1000))
         content += "\n*** Keywords ***\n"
-        content += "User Kw %d\n\tNo Operation" % (resfile_index+1)
-
-        if resfile_index % 2 == 0:
-            extfile_ondisk = open(external_resource_path, "w")
-            extfile_ondisk.write(content)
-            extfile_ondisk.close()
-            db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % external_resource_path)
+        kw_name = "User Kw %d" % (resfile_index+1)
+        content += "%s\n\tNo Operation" % (kw_name)
+        db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,rf_resource_name))
+        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % rf_resource_name)
         resfile_ondisk.write(content)
         resfile_ondisk.close()
-        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % rf_resource_name)
+
+    for resfile_index in range(external_resources):
+        content = "*** Settings ***\n"
+        content += "Resource\t%s\n" % static_external_resource_filename
+        content += "\n*** Keywords ***\n"
+        kw_name = "External User Kw %d" % (resfile_index+1)
+        content += "%s\n\tNo Operation" % (kw_name)
+
+        final_external_filename = external_resource_path % (resfile_index+1)
+        extfile_ondisk = open(final_external_filename, "w")
+        extfile_ondisk.write(content)
+        extfile_ondisk.close()
+        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % final_external_filename)
+
+        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % final_external_filename)
+
 
 
 def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
-                         resource_count=10,resources_in_file=20,avg_test_depth=5,test_validity=1):
+                         resource_count=10,resources_in_file=20,avg_test_depth=5,test_validity=1,external_resources=0):
     print """Generating test project with following settings
     %d test libraries (option 'l')
     %d keywords per test library (option 'k')
@@ -268,11 +281,12 @@ def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=
     %d tests per test suite (option 't')
     %d test steps per test case (option 'e')
     %d resource files (option 'f')
+    %d external resource files (option 'g')
     %d resources per resource file (option 'r')""" % (testlibs_count, keyword_count, testsuite_count,
-                                                      tests_in_suite, avg_test_depth, resource_count, resources_in_file)
+                                                      tests_in_suite, avg_test_depth, resource_count, external_resources, resources_in_file)
 
     _create_test_libraries(dirs, filecount=testlibs_count, keywords=keyword_count)
-    _create_test_resources(dirs,subdir="resources", resource_files=resource_count, resources_in_file=resources_in_file)
+    _create_test_resources(dirs,subdir="resources", resource_files=resource_count, resources_in_file=resources_in_file, external_resources=external_resources)
     _create_test_suite(dirs, filecount=testsuite_count, testcount=tests_in_suite, avg_test_depth=avg_test_depth,test_validity=test_validity)
 
 
@@ -292,6 +306,7 @@ You can define number of test cases in suites, resources in a resource files or 
     group1.add_option("-s", "--suites", dest="suites",help="Number of test suites  [default: %default]", default=1)
     group1.add_option("-t", "--tests", dest="tests",help="Number of tests in a suite  [default: %default]", default=10)
     group1.add_option("-f", "--resourcefiles", dest="resourcefiles",help="Number of resource files.  [default: %default]", default=1)
+    group1.add_option("-g", "--externalresources", dest="externalresources",help="Number of external resource files.  [default: %default]", default=0)
     group1.add_option("-r", "--resources", dest="resources",help="Number of resources in a file.  [default: %default]", default=30)
     group1.add_option("-v", "--validity", dest="validity",help="Validity of test cases (1...0). To have ~80% passes give 0.8.  [default: %default]", default=1)
     group1.add_option("-e", "--testdepth", dest="testdepth", help="Average number of steps in a test case (2..)  [default: %default]", default=3)
@@ -333,6 +348,7 @@ def main(options = None):
     resources_in_file = int(options.resources) or 30
     avg_test_depth = int(options.testdepth) or 3
     test_validity= float(options.validity) or 1
+    external_resources = int(options.externalresources) or 0
 
     if avg_test_depth < 2:
         avg_test_depth = 2
@@ -369,7 +385,7 @@ def main(options = None):
         print "DB error: ",err
 
     _create_test_project([project_root_dir,external_resources_dir],testlibs_count,keyword_count,testsuite_count,tests_in_suite,resource_count,
-        resources_in_file,avg_test_depth,test_validity)
+        resources_in_file,avg_test_depth,test_validity,external_resources)
     result = "PASS"
     return result != 'FAIL'
 
