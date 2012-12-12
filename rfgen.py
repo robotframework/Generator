@@ -227,6 +227,7 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
     static_external_resource.close()
 
     external_resource_path = "%s%s" % (ext_dir, "ext_R%d_Resource.txt")
+    external_resource_path_for_import = "%s%s%s" % (".." + os.sep, ".." + os.sep, "ext_R%d_Resource.txt")
     for resfile_index in range(resource_files):
         basename = "R%d_Resource.txt" % (resfile_index+1)
 
@@ -241,7 +242,7 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
             resfile_ondisk = open("%s%s" % (path + os.sep, basename) ,"w")
         content = "*** Settings ***\n"
         if external_resources > 0:
-            content += "Resource\t" + (external_resource_path % (random.randint(0,external_resources) + 1)) + "\n"
+            content += "Resource\t" + (external_resource_path_for_import % (random.randint(0,external_resources) + 1)) + "\n"
         #available_keywords = db_cursor.execute("SELECT * FROM keywords ORDER BY RANDOM()").fetchall()
         content += "\n*** Variables ***\n"
         for x in range(resources_in_file):
@@ -262,12 +263,11 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
         kw_name = "External User Kw %d" % (resfile_index+1)
         content += "%s\n\tNo Operation" % (kw_name)
 
-        final_external_filename = external_resource_path % (resfile_index+1)
-        extfile_ondisk = open(final_external_filename, "w")
+        extfile_ondisk = open(external_resource_path % (resfile_index+1), "w")
         extfile_ondisk.write(content)
         extfile_ondisk.close()
-        db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, final_external_filename))
-        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % final_external_filename)
+        db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, external_resource_path_for_import % (resfile_index+1)))
+        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % external_resource_path_for_import % (resfile_index+1))
 
 
 def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
@@ -356,7 +356,7 @@ def main(options = None):
         test_validity = 0
 
     project_root_dir = os.path.join("./tmp/", path + "/testdir/")
-    external_resources_dir = "../../ext/"
+    external_resources_dir = "./tmp/ext/"
     sys.path.append(project_root_dir)
     shutil.rmtree(project_root_dir, ignore_errors=True)
     shutil.rmtree(external_resources_dir, ignore_errors=True)
