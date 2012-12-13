@@ -146,7 +146,12 @@ def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, 
             if test_tag != suite_tag and random.choice([1,2]) == 1:
                 test_txt += "\n\t[Tags]\t%s\n" % test_tag
 
+            external_kw_not_used = True
             for i in range(avg_test_depth+random.choice([-1,0,1])):
+                if external_kw_not_used:
+                    test_txt += "\tMy Super KW\n"
+                    external_kw_not_used = False
+                    continue
                 kw1 = random.choice(available_keywords)
                 kw_library = kw1[2]
                 for key,val in libraries_in_use.iteritems():
