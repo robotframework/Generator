@@ -32,6 +32,21 @@ sys.path.insert(0, lib)
 sys.path.insert(0, src)
 
 
+class MyParser(optparse.OptionParser):
+    def format_epilog(self, formatter):
+        return self.epilog
+    def format_help(self, formatter=None):
+        if formatter is None:
+            formatter = self.formatter
+        result = []
+        if self.usage:
+            result.append(self.get_usage() + "\n")
+        if self.description:
+            result.append(self.format_description(formatter) + "\n")
+        result.append(self.format_option_help(formatter))
+        #result.append(self.format_epilog(formatter))
+        return "".join(result)
+
 class TestResource:
 
     def __init__(self, path):
@@ -93,7 +108,7 @@ def _sql_insert(sqlString=""):
 
 def _sql_select(sqlString=""):
     global db_cursor
-    return db_cursor.execute(sqlString)
+    return db_cursor.execute(sqlString).fetchall()
 
 def _get_random_name(prefix=""):
     global words
@@ -105,6 +120,8 @@ def _get_random_name(prefix=""):
 def _get_random_verb(prefix=""):
     global verbs
 
+    verb = random.choice(verbs)
+    return "%s%s" % (prefix, verb)
 
 def _create_test_libraries(dirs, filecount = 10, keywords=10):
     path = dirs[0]
@@ -118,26 +135,39 @@ def _create_test_libraries(dirs, filecount = 10, keywords=10):
         libs.append(lib)
 
 
+def _add_external_keyword():
+    external_kw_not_used = True
+    test_txt = ""
+    if external_kw_not_used:
+        test_txt += "\tMy Super KW\n"
+        external_kw_not_used = False
+    return test_txt
+
+
+def _add_keyword(library, generate_error = False):
+
+    available_keywords = _sql_select("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()"
+                                     % library)
+
+
 def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, test_validity = 1):
-    global db_cursor, verbs, words, common_tags
+    global common_tags
 
     path = dirs[0]
-    available_resources = db_cursor.execute(
-        "SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()").fetchall()
-    available_external_resources = db_cursor.execute(
-        "SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()").fetchall()
-    for testfile_index in range(filecount):
+    available_resources = _sql_select("SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()")
+    available_external_resources = _sql_select("SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()")
+    available_libraries = _sql_select("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'")
+
+    for test_index in range(filecount):
         libraries_in_use = {}
         resources_in_use = []
         generated_errors = 0
         settings_txt = ""
-        test_txt = ""
         keywords_txt = ""
-        available_libraries = db_cursor.execute("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'").fetchall()
 
-        tcfile = open("%s/T%d_CustomTests.txt" % (path, testfile_index+1),"w")
+        tcfile = open("%s/T%d_CustomTests.txt" % (path, test_index+1),"w")
         suite_tag = random.choice(common_tags)
-        test_txt += "*** Test Cases ***\n"
+        test_txt = "*** Test Cases ***\n"
         for tc in range(testcount):
             generate_error = False
             if test_validity < 1 and random.random() > (test_validity*1.0):
@@ -156,21 +186,19 @@ def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, 
                     if val == selected_library:
                         testlib = key
                         break
-            tc_name = "Test %s in %s #%d" % (random.choice(verbs), selected_library.split("CustomLib")[1], tc)
-            available_keywords = db_cursor.execute("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()"
-                                                   % selected_library).fetchall()
-            kwlib = random.choice([selected_library, testlib, testlib + "xyz"])
-            test_txt += "%s\t[Documentation]\t%s\n" % (tc_name, "Test %d - %s\\n\\n%s" % (tc,strftime("%d.%m.%Y %H:%M:%S"),random.choice(words).strip()))
+            tc_name = "Test %s in %s #%d" % (_get_random_verb(), selected_library.split("CustomLib")[1], tc)
+            available_keywords = _sql_select("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()"
+                                                   % selected_library)
+            test_txt += "%s\t[Documentation]\t%s\n" % (tc_name, "Test %d - %s\\n\\n%s" % (tc,strftime("%d.%m.%Y %H:%M:%S"),_get_random_name()))
             test_tag = random.choice(common_tags)
+
             if test_tag != suite_tag and random.choice([1,2]) == 1:
                 test_txt += "\n\t[Tags]\t%s\n" % test_tag
 
-            external_kw_not_used = True
             for i in range(avg_test_depth+random.choice([-1,0,1])):
-                if external_kw_not_used:
-                    test_txt += "\tMy Super KW\n"
-                    external_kw_not_used = False
-                    continue
+                test_txt += _add_external_keyword()
+                #test_txt += _add_keyword(available_libraries, generate_error)
+
                 kw1 = random.choice(available_keywords)
                 kw_library = kw1[2]
                 for key,val in libraries_in_use.iteritems():
@@ -190,7 +218,7 @@ def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, 
                 argument = None
                 return_statement = None
                 if kw_args == 1:
-                    argument = random.choice(words).strip().lower()
+                    argument = _get_random_name().lower()
                 if kw_return == 1:
                     return_statement = "${ret}="
                 test_txt += "\t\t"
@@ -247,7 +275,7 @@ def _create_static_resource_files(target_dir, filename = "static_external_resour
     static_external_resource = open(target_dir + static_external_resource_filename, "w")
     static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
     static_external_resource.close()
-    external_info['path'] = "%s%s" % (target_dir, "ext_R%d_Resource.txt")
+    external_info['filepath'] = "%s%s" % (target_dir, "ext_R%d_Resource.txt")
 
     if os.name == 'posix':
         external_info['import_path'] = "%s%s%s%s" % (".." + os.sep, ".." + os.sep, "ext" + os.sep, "ext_R%d_Resource.txt")
@@ -257,54 +285,61 @@ def _create_static_resource_files(target_dir, filename = "static_external_resour
 
     return external_info
 
+
+def _create_resource_file(target_dir, subdir = "", id = 1):
+    res_info = {}
+    res_info['filename'] = "R%d_Resource.txt" % id
+
+    full_path = target_dir + os.sep
+    res_info['import_path'] = res_info['filename']
+    if subdir != "":
+        full_path += subdir + os.sep
+        res_info['import_path'] = subdir + "${/}" + res_info['filename']
+    if not os.path.exists(full_path):
+        os.makedirs(full_path)
+
+    res_info['filepath'] = "%s%s" % (full_path, res_info['filename'])
+    return res_info
+
+
 def _create_test_resources(dirs, resource_files, resources_in_file, external_resources, subdir = ""):
-    global db_cursor, verbs, words
-
-    path = dirs[0]
     ext_info = _create_static_resource_files(dirs[1])
+    variable_count = resources_in_file / 2
+    keyword_count = resources_in_file - variable_count
 
-    for resfile_index in range(resource_files):
-        basename = "R%d_Resource.txt" % (resfile_index+1)
+    for resource_index in range(resource_files):
+        res_info = _create_resource_file(dirs[0], subdir, resource_index+1)
+        resfile_ondisk = open(res_info['filepath'],"w")
 
-        if subdir != "":
-            rf_resource_name = subdir + "${/}" + basename
-            fullpath = path + os.sep + subdir + os.sep
-            if not os.path.exists(fullpath):
-                os.makedirs(fullpath)
-            resfile_ondisk = open("%s%s" % (fullpath, basename) ,"w")
-        else:
-            rf_resource_name = basename
-            resfile_ondisk = open("%s%s" % (path + os.sep, basename) ,"w")
         content = "*** Settings ***\n"
         if external_resources > 0:
             content += "Resource\t" + (ext_info['import_path'] % (random.randint(0,external_resources) + 1)) + "\n"
-        #available_keywords = db_cursor.execute("SELECT * FROM keywords ORDER BY RANDOM()").fetchall()
+
         content += "\n*** Variables ***\n"
-        for x in range(resources_in_file):
-            content += "%-25s%10s%d\n" % ("${%s%d}" % (random.choice(words).strip().capitalize(),x),"",
-                                          random.randint(1,1000))
+        for x in range(variable_count):
+            content += "%-25s%10s%d\n" % ("${%s%d}" % (_get_random_name(),x),"",random.randint(1,1000))
+
         content += "\n*** Keywords ***\n"
-        word = random.choice(words).strip().capitalize()
-        for x in range(55):
-            kw_name = "Resource %s User Kw %d" % (word, x+1)
+        for x in range(keyword_count):
+            kw_name = "Resource %s User Kw %d" % (_get_random_name(), x+1)
             content += "%s\n\tNo Operation\n" % (kw_name)
-            db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,rf_resource_name))
-        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % rf_resource_name)
+            _sql_insert("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, res_info['import_path']))
+        _sql_insert("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % res_info['import_path'])
         resfile_ondisk.write(content)
         resfile_ondisk.close()
 
-    for resfile_index in range(external_resources):
+    for resource_index in range(external_resources):
         content = "*** Settings ***\n"
         content += "Resource\t%s\n" % ext_info['filename']
         content += "\n*** Keywords ***\n"
-        kw_name = "External User Kw %d" % (resfile_index+1)
+        kw_name = "External User Kw %d" % (resource_index+1)
         content += "%s\n\tNo Operation" % (kw_name)
 
-        extfile_ondisk = open(ext_info['path'] % (resfile_index+1), "w")
+        extfile_ondisk = open(ext_info['path'] % (resource_index+1), "w")
         extfile_ondisk.write(content)
         extfile_ondisk.close()
-        db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, ext_info['path'] % (resfile_index+1)))
-        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % ext_info['path'] % (resfile_index+1))
+        _sql_insert("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, ext_info['filepath'] % (resource_index+1)))
+        _sql_insert("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % ext_info['filepath'] % (resource_index+1))
 
 
 def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
@@ -424,21 +459,6 @@ def main(options = None):
     result = "PASS"
     return result != 'FAIL'
 
-
-class MyParser(optparse.OptionParser):
-    def format_epilog(self, formatter):
-        return self.epilog
-    def format_help(self, formatter=None):
-        if formatter is None:
-            formatter = self.formatter
-        result = []
-        if self.usage:
-            result.append(self.get_usage() + "\n")
-        if self.description:
-            result.append(self.format_description(formatter) + "\n")
-        result.append(self.format_option_help(formatter))
-        #result.append(self.format_epilog(formatter))
-        return "".join(result)
 
 
 # Global variables
