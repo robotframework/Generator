@@ -17,15 +17,12 @@ import optparse
 import os
 import random
 import shutil
-import time
 import sys
 import sqlite3
 from sqlite3 import OperationalError
 import copy
 from time import strftime
-from optparse import OptionParser
 import urllib2
-import platform
 
 ROOT = os.path.dirname(__file__)
 lib = os.path.join(ROOT, '..', 'lib')
@@ -35,68 +32,90 @@ sys.path.insert(0, lib)
 sys.path.insert(0, src)
 
 
-def _create_test_libraries(dirs, filecount = 10, keywords=10):
-    global db_cursor, verbs, words
+class TestResource:
 
+    def __init__(self, path):
+        pass
+
+class TestLibrary:
+    def __init__(self, path):
+        self.lib_path = path
+        self.lib_prefix = "CustomLib"
+        self.lib_name = _get_random_name(self.lib_prefix)
+        _sql_insert("INSERT INTO source (path,type) VALUES ('%s','CUSTOMLIBRARY')" % self.lib_name)
+        self.lib_file = open("%s/%s.py" % (self.lib_path,self.lib_name),"w")
+        self.lib_doc = '\t"""Library documentation:\n' +\
+                     '\t\t%s"""' % self.lib_name
+        self.write("import os,time\n\n" +\
+                  "class %s:\n" % self.lib_name +\
+                  "\tdef __init__(self):\n" +\
+                  "\t%s\n" % self.lib_doc)
+        self.write("\t\t%s" % _select_functionality() + "\n")
+        self.verbs = copy.copy(verbs)
+        self.kw_count = 1
+
+    def add_keyword(self):
+        if len(self.verbs) > 0:
+            kw_name_prefix = self.verbs.pop().capitalize()
+        else:
+            kw_name_prefix = "KW_%d" % self.kw_count
+        self.kw_count += 1
+        kw_name = kw_name_prefix + "_" + self.lib_prefix
+        _sql_insert("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,self.lib_name))
+        kw_doc = '"""Keyword documentation for %s"""' % kw_name
+        self.write("\tdef %s(self):\n" % kw_name +\
+                  "\t\t%s\n" % kw_doc +\
+                  "\t\t%s\n" % _select_functionality())
+
+    def write(self, text):
+        self.lib_file.write(text)
+
+    def close(self):
+        global db_connection
+
+        db_connection.commit()
+        self.write("myinstance = %s()" % self.lib_name)
+        self.lib_file.close()
+
+
+def _select_functionality():
+    directory_looper = "for dirname, dirnames, filenames in os.walk('.'):\n" +\
+                       "\t\t\tfor subdirname in dirnames:\n" +\
+                       "\t\t\t\tprint os.path.join(dirname, subdirname)\n" +\
+                       "\t\t\tfor filename in filenames:\n" +\
+                       "\t\t\t\tprint os.path.join(dirname, filename)\n"
+    sleeper = "time.sleep(1)\n"
+    return random.choice([directory_looper, sleeper, "pass\n"])
+
+def _sql_insert(sqlString=""):
+    global db_cursor
+    db_cursor.execute(sqlString)
+
+def _sql_select(sqlString=""):
+    global db_cursor
+    return db_cursor.execute(sqlString)
+
+def _get_random_name(prefix=""):
+    global words
+
+    random_name = random.choice(words).strip().capitalize()
+    return "%s%s" % (prefix, random_name)
+
+
+def _get_random_verb(prefix=""):
+    global verbs
+
+
+def _create_test_libraries(dirs, filecount = 10, keywords=10):
     path = dirs[0]
     libs = []
 
     for x in range(filecount):
-        lib_main = random.choice(words).strip().capitalize()
-        lib_name = "CustomLib%s" % lib_main
-        libs.append(lib_name)
-        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','CUSTOMLIBRARY')" % lib_name)
-        libfile = open("%s/%s.py" % (path,lib_name),"w")
-        lib_doc = '\t"""Library documentation:\n' + \
-                  '\t\t%s"""' % lib_name
-        libfile.write("import os,time\n\n" + \
-                    "class %s:\n" % lib_name + \
-                    "\tdef __init__(self):\n" + \
-                    "\t%s\n" % lib_doc)
-
-        directory_looper = "for dirname, dirnames, filenames in os.walk('.'):\n" + \
-                "\t\t\tfor subdirname in dirnames:\n" + \
-                "\t\t\t\tprint os.path.join(dirname, subdirname)\n" + \
-                "\t\t\tfor filename in filenames:\n" + \
-                "\t\t\t\tprint os.path.join(dirname, filename)\n"
-        sleeper = "time.sleep(1)\n"
-
-        libfile.write("\t\t%s" % random.choice([directory_looper, sleeper]) + "\n")
-
-        temp_verb = copy.copy(verbs)
-        counter = 1
+        lib = TestLibrary(path)
         for x in range(keywords):
-            if len(temp_verb) > 0:
-                verb = temp_verb.pop().capitalize()
-            else:
-                verb = "KW_%d" % counter
-                counter += 1
-            kw_name = verb + "_" + lib_main
-            db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,lib_name))
-            kw_doc = '"""Keyword documentation for %s"""' % kw_name
-            libfile.write("\tdef %s(self):\n" % kw_name + \
-                        "\t\t%s\n" % kw_doc + \
-                        "\t\t%s\n" % random.choice([directory_looper, sleeper, "pass\n"]))
-
-        libfile.write("myinstance = %s()" % lib_name)
-        libfile.close()
-
-    #initfile_lines = open("%s/__init__.txt" % path).readlines()
-    index = 0
-
-#    for line in initfile_lines:
-#        if "*** Settings ***" in line:
-#            index += 1
-#            for lib_name in libs:
-#                initfile_lines.insert(index, "Library\t%s.py\n" % lib_name)
-#                index += 1
-#            break
-#        index += 1
-
-#fo = open("%s/__init__.txt" % path, "w")
-#for line in initfile_lines:
-#    fo.write(line)
-#fo.close()
+            lib.add_keyword()
+        lib.close()
+        libs.append(lib)
 
 
 def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, test_validity = 1):
@@ -218,26 +237,32 @@ def _create_test_suite(dirs, filecount = 1, testcount = 20, avg_test_depth = 5, 
         tcfile.write(keywords_txt)
         tcfile.close()
 
+def _create_static_resource_files(target_dir, filename = "static_external_resource.txt", count = 1):
+    external_info = {}
+
+    if not os.path.exists(os.path.split(target_dir)[0]):
+        os.makedirs(os.path.split(target_dir)[0])
+
+    static_external_resource_filename = filename
+    static_external_resource = open(target_dir + static_external_resource_filename, "w")
+    static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
+    static_external_resource.close()
+    external_info['path'] = "%s%s" % (target_dir, "ext_R%d_Resource.txt")
+
+    if os.name == 'posix':
+        external_info['import_path'] = "%s%s%s%s" % (".." + os.sep, ".." + os.sep, "ext" + os.sep, "ext_R%d_Resource.txt")
+    else:
+        external_info['import_path'] = "%s%s" % (target_dir, "ext_R%d_Resource.txt")
+    external_info['filename'] = static_external_resource_filename
+
+    return external_info
 
 def _create_test_resources(dirs, resource_files, resources_in_file, external_resources, subdir = ""):
     global db_cursor, verbs, words
 
     path = dirs[0]
-    ext_dir = dirs[1]
-    if not os.path.exists(os.path.split(ext_dir)[0]):
-        os.makedirs(os.path.split(ext_dir)[0])
+    ext_info = _create_static_resource_files(dirs[1])
 
-    static_external_resource_filename = "static_external_resource.txt"
-    static_external_resource = open(ext_dir + static_external_resource_filename, "w")
-    static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
-    static_external_resource.close()
-
-    external_resource_path = "%s%s" % (ext_dir, "ext_R%d_Resource.txt")
-
-    if os.name == 'posix':
-        external_resource_path_for_import = "%s%s%s%s" % (".." + os.sep, ".." + os.sep, "ext" + os.sep, "ext_R%d_Resource.txt")
-    else:
-        external_resource_path_for_import = "%s%s" % (ext_dir, "ext_R%d_Resource.txt")
     for resfile_index in range(resource_files):
         basename = "R%d_Resource.txt" % (resfile_index+1)
 
@@ -252,32 +277,34 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
             resfile_ondisk = open("%s%s" % (path + os.sep, basename) ,"w")
         content = "*** Settings ***\n"
         if external_resources > 0:
-            content += "Resource\t" + (external_resource_path_for_import % (random.randint(0,external_resources) + 1)) + "\n"
+            content += "Resource\t" + (ext_info['import_path'] % (random.randint(0,external_resources) + 1)) + "\n"
         #available_keywords = db_cursor.execute("SELECT * FROM keywords ORDER BY RANDOM()").fetchall()
         content += "\n*** Variables ***\n"
         for x in range(resources_in_file):
             content += "%-25s%10s%d\n" % ("${%s%d}" % (random.choice(words).strip().capitalize(),x),"",
                                           random.randint(1,1000))
         content += "\n*** Keywords ***\n"
-        kw_name = "User Kw %d" % (resfile_index+1)
-        content += "%s\n\tNo Operation" % (kw_name)
-        db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,rf_resource_name))
+        word = random.choice(words).strip().capitalize()
+        for x in range(55):
+            kw_name = "Resource %s User Kw %d" % (word, x+1)
+            content += "%s\n\tNo Operation\n" % (kw_name)
+            db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,rf_resource_name))
         db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % rf_resource_name)
         resfile_ondisk.write(content)
         resfile_ondisk.close()
 
     for resfile_index in range(external_resources):
         content = "*** Settings ***\n"
-        content += "Resource\t%s\n" % static_external_resource_filename
+        content += "Resource\t%s\n" % ext_info['filename']
         content += "\n*** Keywords ***\n"
         kw_name = "External User Kw %d" % (resfile_index+1)
         content += "%s\n\tNo Operation" % (kw_name)
 
-        extfile_ondisk = open(external_resource_path % (resfile_index+1), "w")
+        extfile_ondisk = open(ext_info['path'] % (resfile_index+1), "w")
         extfile_ondisk.write(content)
         extfile_ondisk.close()
-        db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, external_resource_path_for_import % (resfile_index+1)))
-        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % external_resource_path_for_import % (resfile_index+1))
+        db_cursor.execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, ext_info['path'] % (resfile_index+1)))
+        db_cursor.execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % ext_info['path'] % (resfile_index+1))
 
 
 def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
