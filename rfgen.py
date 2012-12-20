@@ -59,7 +59,7 @@ class TestLibrary:
         self.lib_path = path
         self.lib_prefix = "CustomLib"
         self.lib_name = _get_random_name(self.lib_prefix)
-        _sql_insert("INSERT INTO source (path,type) VALUES ('%s','CUSTOMLIBRARY')" % self.lib_name)
+        _sql_execute("INSERT INTO source (path,type) VALUES ('%s','CUSTOMLIBRARY')" % self.lib_name)
         self.lib_file = open("%s/%s.py" % (self.lib_path,self.lib_name),"w")
         self.lib_doc = '\t"""Library documentation:\n' +\
                      '\t\t%s"""' % self.lib_name
@@ -78,7 +78,7 @@ class TestLibrary:
             kw_name_prefix = "KW_%d" % self.kw_count
         self.kw_count += 1
         kw_name = kw_name_prefix + "_" + self.lib_prefix
-        _sql_insert("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,self.lib_name))
+        _sql_execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,self.lib_name))
         kw_doc = '"""Keyword documentation for %s"""' % kw_name
         self.write("\tdef %s(self):\n" % kw_name +\
                   "\t\t%s\n" % kw_doc +\
@@ -179,7 +179,7 @@ def _select_functionality():
     return random.choice([directory_looper, sleeper, "pass\n"])
 
 
-def _sql_insert(sqlString=""):
+def _sql_execute(sqlString=""):
     global db_cursor
     db_cursor.execute(sqlString)
 
@@ -380,7 +380,7 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
 
         content = "*** Settings ***\n"
         if external_resources > 0:
-            content += "Resource\t" + (ext_info['import_path'] % (random.randint(0,external_resources) + 1)) + "\n"
+            content += "Resource\t" + (".." + os.sep + ext_info['import_path'] % (random.randint(1,external_resources))) + "\n"
 
         content += "\n*** Variables ***\n"
         for x in range(variable_count):
@@ -390,8 +390,8 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
         for x in range(keyword_count):
             kw_name = "Resource %s User Kw %d" % (_get_random_name(), x+1)
             content += "%s\n\tNo Operation\n" % (kw_name)
-            _sql_insert("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, res_info['import_path']))
-        _sql_insert("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % res_info['import_path'])
+            _sql_execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, res_info['import_path']))
+        _sql_execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % res_info['import_path'])
         resfile_ondisk.write(content)
         resfile_ondisk.close()
 
@@ -402,11 +402,11 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
         kw_name = "External User Kw %d" % (resource_index+1)
         content += "%s\n\tNo Operation" % (kw_name)
 
-        extfile_ondisk = open(ext_info['path'] % (resource_index+1), "w")
+        extfile_ondisk = open(ext_info['filepath'] % (resource_index+1), "w")
         extfile_ondisk.write(content)
         extfile_ondisk.close()
-        _sql_insert("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, ext_info['filepath'] % (resource_index+1)))
-        _sql_insert("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % ext_info['filepath'] % (resource_index+1))
+        _sql_execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, ext_info['import_path'] % (resource_index+1)))
+        _sql_execute("INSERT INTO source (path,type) VALUES ('%s','EXT_RESOURCE')" % ext_info['import_path'] % (resource_index+1))
 
 
 def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=5,tests_in_suite=10,
@@ -507,10 +507,10 @@ def main(options = None):
     db_connection=sqlite3.connect(os.path.join(project_root_dir, "testdata.db"))
     db_cursor=db_connection.cursor()
     try:
-        db_cursor.execute('CREATE TABLE IF NOT EXISTS source (id INTEGER PRIMARY KEY, path TEXT, type TEXT)')
-        db_cursor.execute('CREATE TABLE IF NOT EXISTS keywords (id INTEGER PRIMARY KEY, name TEXT, source TEXT, arguments INTEGER, returns INTEGER)')
-        db_cursor.execute('DELETE FROM source')
-        db_cursor.execute('DELETE FROM keywords')
+        _sql_execute('CREATE TABLE IF NOT EXISTS source (id INTEGER PRIMARY KEY, path TEXT, type TEXT)')
+        _sql_execute('CREATE TABLE IF NOT EXISTS keywords (id INTEGER PRIMARY KEY, name TEXT, source TEXT, arguments INTEGER, returns INTEGER)')
+        _sql_execute('DELETE FROM source')
+        _sql_execute('DELETE FROM keywords')
         libs_to_insert = [("BuiltIn","LIBRARY"),("OperatingSystem","LIBRARY"),("String","LIBRARY")]
         db_cursor.executemany('INSERT INTO source (path,type) VALUES (?,?)', libs_to_insert)
         keywords_to_insert = [("Log","BuiltIn",1,0),("No Operation","BuiltIn",0,0),("Get Time","BuiltIn",0,1),
