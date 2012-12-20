@@ -96,13 +96,14 @@ class TestLibrary:
 
 class TestSuite(object):
 
-    def __init__(self, path, test_index, available_libraries, avg_test_depth, test_validity, test_count):
+    def __init__(self, path, test_index, available_libraries, avg_test_depth, test_validity, test_count, external_resource_count):
         self.path = path
         self.test_index = test_index
         self.available_libraries = available_libraries
         self.avg_test_depth = avg_test_depth
         self.test_validity = test_validity
         self.test_count = test_count
+        self.external_resource_count = external_resource_count
         self.libraries_in_use = {}
         self.suite_tag = None
         self.error_count = 0
@@ -128,6 +129,9 @@ My Keyword
 
     def get_libraries(self):
         return self.libraries_in_use
+
+    def get_external_resource_count(self):
+        return self.external_resource_count
 
     def get_test_validity(self):
         return self.test_validity
@@ -237,7 +241,7 @@ def _create_test_structure(dirs, filecount = 1, test_count = 20, avg_test_depth 
     available_libraries = _sql_select("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'")
 
     for test_index in range(filecount):
-        suite = TestSuite(path, test_index, available_libraries, avg_test_depth, test_validity, test_count)
+        suite = TestSuite(path, test_index, available_libraries, avg_test_depth, test_validity, test_count, len(available_external_resources))
         test_txt = _construct_test_suite(suite)
         settings_txt = "*** Settings ***\n"
         for testlib_key,testlib_value in suite.get_libraries().iteritems():
@@ -287,7 +291,8 @@ def _construct_test_suite(suite):
             test_txt += "\n\t[Tags]\t%s\n" % test_tag
 
         for i in range(suite.get_test_depth()):
-            test_txt += _add_external_keyword()
+            if suite.get_external_resource_count() > 0:
+                test_txt += _add_external_keyword()
             #test_txt += _add_keyword(available_libraries, generate_error)
 
             kw1 = random.choice(available_keywords)
