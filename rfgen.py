@@ -12,7 +12,6 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-from math import ceil
 import optparse
 import os
 import random
@@ -45,7 +44,6 @@ class MyParser(optparse.OptionParser):
         if self.description:
             result.append(self.format_description(formatter) + "\n")
         result.append(self.format_option_help(formatter))
-        #result.append(self.format_epilog(formatter))
         return "".join(result)
 
 class TestResource:
@@ -110,6 +108,9 @@ class TestSuite(object):
         self.keywords_txt = self._create_keyword_txt()
         self.settings_txt = ""
         self.test_txt = ""
+        self.selected_library = None
+        self.library_index = 1
+        self.generated_errors = 0
 
     def _create_keyword_txt(self):
         return """\
@@ -154,7 +155,15 @@ My Keyword
         return False
 
     def select_library(self):
-        return random.choice(self.available_libraries)[0]
+        self.selected_library = random.choice(self.available_libraries)[0]
+        self.available_keywords = _sql_select("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()" % self.selected_library)
+        if not self.is_library_in_use(self.selected_library):
+            self.add_library_in_use(self.selected_library, self.next_free)
+        return self.selected_library
+
+    @property
+    def next_free(self):
+        return self.library_index+1
 
     def add_library_in_use(self, library_value, tc = 1):
         use_with_name = random.choice([True, False])
@@ -172,6 +181,56 @@ My Keyword
         self.settings_txt = settings_txt
         self.test_txt = test_txt
 
+    def insert_test_step(self):
+        test_txt = ""
+        generate_error = self.is_error_generated()
+        kw1 = random.choice(self.available_keywords)
+        kw_library = kw1[2]
+        for key, val in self.get_libraries().iteritems():
+            if val == kw_library:
+                kw_library = key
+        kw_action = kw1[1].replace("_", " ")
+        if generate_error:
+            kw_action += "_X"
+            self.generated_errors += 1
+        if kw_library in ('BuiltIn', 'OperatingSystem', 'String'):
+            kw_total = kw_action
+        else:
+            kw_total = "%s.%s" % (kw_library, kw_action)
+        kw_args = kw1[3]
+        kw_return = kw1[4]
+        argument = None
+        return_statement = None
+        if kw_args == 1:
+            argument = _get_random_name().lower()
+        if kw_return == 1:
+            return_statement = "${ret}="
+        test_txt += "\t\t"
+        if return_statement:
+            test_txt += return_statement
+        test_txt += "\t%s" % kw_total
+        if argument:
+            if kw_action == "Count Files In Directory":
+                test_txt += "\t" + os.path.abspath(os.curdir)
+                test_txt += "\tabsolute=True"
+            else:
+                test_txt += "\t" + argument
+        test_txt += "\n"
+        if return_statement:
+            test_txt += "\t\tLog\t${ret}\n"
+        return test_txt
+
+    def force_one_error_or_not(self, tc):
+        if tc == self.get_test_count() - 1 and self.generated_errors == 0 and self.get_test_validity() < 1:
+            return "\t\tLogX\t${ret}\n"
+        return ""
+
+    def tag_test_suite(self):
+        suite_tag = random.choice(common_tags)
+        test_tag = random.choice(common_tags)
+        if test_tag != suite_tag and random.choice([1, 2]) == 1:
+            return "\n\t[Tags]\t%s\n" % test_tag
+        return ""
 
 def _select_functionality():
     directory_looper = "for dirname, dirnames, filenames in os.walk('.'):\n" +\
@@ -228,12 +287,6 @@ def _add_external_keyword():
     return test_txt
 
 
-def _add_keyword(library, generate_error = False):
-
-    available_keywords = _sql_select("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()"
-                                     % library)
-
-
 def _create_test_structure(dirs, filecount = 1, test_count = 20, avg_test_depth = 5, test_validity = 1):
     path = dirs[0]
     available_resources = _sql_select("SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()")
@@ -266,74 +319,21 @@ def _create_test_structure(dirs, filecount = 1, test_count = 20, avg_test_depth 
         suite.write()
 
 
+
 def _construct_test_suite(suite):
-    global common_tags
-
-    generated_errors = 0
-    suite_tag = random.choice(common_tags)
     test_txt = "*** Test Cases ***\n"
-
     for tc in range(suite.get_test_count()):
-        generate_error = suite.is_error_generated()
         selected_library = suite.select_library()
-        if not suite.is_library_in_use(selected_library):
-            suite.add_library_in_use(selected_library, tc)
-
         tc_name = "Test %s in %s #%d" % (_get_random_verb(), selected_library.split("CustomLib")[1], tc)
-        available_keywords = _sql_select(
-            "SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()"
-            % selected_library)
         test_txt += "%s\t[Documentation]\t%s\n" % (
             tc_name, "Test %d - %s\\n\\n%s" % (tc, strftime("%d.%m.%Y %H:%M:%S"), _get_random_name()))
-        test_tag = random.choice(common_tags)
-
-        if test_tag != suite_tag and random.choice([1, 2]) == 1:
-            test_txt += "\n\t[Tags]\t%s\n" % test_tag
-
+        test_txt += suite.tag_test_suite()
         for i in range(suite.get_test_depth()):
             if suite.get_external_resource_count() > 0:
                 test_txt += _add_external_keyword()
-            #test_txt += _add_keyword(available_libraries, generate_error)
-
-            kw1 = random.choice(available_keywords)
-            kw_library = kw1[2]
-            for key, val in suite.get_libraries().iteritems():
-                if val == kw_library:
-                    kw_library = key
-            kw_action = kw1[1].replace("_", " ")
-            if generate_error:
-                kw_action += "_X"
-                generate_error = False
-                generated_errors += 1
-            if kw_library in ('BuiltIn', 'OperatingSystem', 'String'):
-                kw_total = kw_action
-            else:
-                kw_total = "%s.%s" % (kw_library, kw_action)
-            kw_args = kw1[3]
-            kw_return = kw1[4]
-            argument = None
-            return_statement = None
-            if kw_args == 1:
-                argument = _get_random_name().lower()
-            if kw_return == 1:
-                return_statement = "${ret}="
-            test_txt += "\t\t"
-            if return_statement:
-                test_txt += return_statement
-            test_txt += "\t%s" % kw_total
-            if argument:
-                if kw_action == "Count Files In Directory":
-                    test_txt += "\t" + os.path.abspath(os.curdir)
-                    test_txt += "\tabsolute=True"
-                else:
-                    test_txt += "\t" + argument
-            test_txt += "\n"
-            if return_statement:
-                test_txt += "\t\tLog\t${ret}\n"
-        if tc == suite.get_test_count() - 1 and generated_errors == 0 and suite.get_test_validity() < 1:
-            test_txt += "\t\tLogX\t${ret}\n"
+            test_txt += suite.insert_test_step()
+        test_txt += suite.force_one_error_or_not(tc)
         test_txt += "\n"
-
     return test_txt
 
 
