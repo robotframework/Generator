@@ -340,19 +340,16 @@ def _construct_test_suite(suite):
 def _create_static_resource_files(target_dir, filename = "static_external_resource.txt", count = 1):
     external_info = {}
 
-    if not os.path.exists(os.path.split(target_dir)[0]):
-        os.makedirs(os.path.split(target_dir)[0])
+    print "target_dir", target_dir
+    if not os.path.exists(target_dir):
+        os.makedirs(target_dir)
 
     static_external_resource_filename = filename
-    static_external_resource = open(target_dir + static_external_resource_filename, "w")
+    static_external_resource = open(os.path.join(target_dir,static_external_resource_filename), "w")
     static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
     static_external_resource.close()
-    external_info['filepath'] = "%s%s" % (target_dir, "ext_R%d_Resource.txt")
-
-    if os.name == 'posix':
-        external_info['import_path'] = "%s%s%s%s" % (".." + os.sep, ".." + os.sep, "ext" + os.sep, "ext_R%d_Resource.txt")
-    else:
-        external_info['import_path'] = "%s%s" % (target_dir, "ext_R%d_Resource.txt")
+    external_info['filepath'] = os.path.join(target_dir, "ext_R%d_Resource.txt")
+    external_info['import_path'] = os.path.join("..", "..", "ext", "ext_R%d_Resource.txt")
     external_info['filename'] = static_external_resource_filename
 
     return external_info
@@ -499,8 +496,8 @@ def main(options = None):
     elif test_validity < 0:
         test_validity = 0
 
-    project_root_dir = os.path.join("./tmp/", path + "/testdir/")
-    external_resources_dir = "./tmp/ext/"
+    project_root_dir = os.path.join(".","tmp",path,"testdir")
+    external_resources_dir = os.path.join(".","tmp","ext")
     sys.path.append(project_root_dir)
     shutil.rmtree(project_root_dir, ignore_errors=True)
     shutil.rmtree(external_resources_dir, ignore_errors=True)
