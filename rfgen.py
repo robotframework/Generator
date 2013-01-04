@@ -20,7 +20,7 @@ import sys
 import sqlite3
 from sqlite3 import OperationalError
 import copy
-from time import strftime
+from time import strftime, time
 import urllib2
 
 ROOT = os.path.dirname(__file__)
@@ -30,6 +30,44 @@ src = os.path.join(ROOT, '..', 'src')
 sys.path.insert(0, lib)
 sys.path.insert(0, src)
 
+class Randomizer():
+
+    def __init__(self, seed=None):
+        self.random = random.Random()
+        if not seed:
+            self.seed = int(time())
+        else:
+            self.seed = int(seed)
+        self.random.seed(self.seed)
+        self.len_of_words = len(words)
+        self.len_of_verbs = len(verbs)
+
+    def get_seed(self):
+        return self.seed
+
+    def _choice(self, theArray, capitalize=False, prefix=""):
+        chosen = theArray[self.random.randint(0, len(theArray)-1)]
+        if type(chosen) is tuple:
+            return chosen
+        if capitalize:
+            chosen = chosen.capitalize()
+        return "%s%s" % (prefix, chosen)
+
+    def _get_random_name(self, prefix=""):
+        return self._choice(words, capitalize=True, prefix=prefix)
+        #random_name = words[self.random.randint(0,self.len_of_words-1)].strip().capitalize()
+        #return "%s%s" % (prefix, random_name)
+
+    def _get_random_verb(self, prefix=""):
+        return self._choice(verbs, capitalize=False, prefix=prefix)
+        #verb = verbs[self.random.randint(0, self.len_of_verbs-1)].strip()
+        #return "%s%s" % (prefix, verb)
+
+    def _get_random_int(self, start, end):
+        return self.random.randint(start,end)
+
+    def _random(self):
+        return self.random.random()
 
 class MyParser(optparse.OptionParser):
 
@@ -56,7 +94,7 @@ class TestLibrary:
     def __init__(self, path):
         self.lib_path = path
         self.lib_prefix = "CustomLib"
-        self.lib_name = _get_random_name(self.lib_prefix)
+        self.lib_name = randomizer._get_random_name(self.lib_prefix)
         _sql_execute("INSERT INTO source (path,type) VALUES ('%s','CUSTOMLIBRARY')" % self.lib_name)
         self.lib_file = open("%s/%s.py" % (self.lib_path,self.lib_name),"w")
         self.lib_doc = '\t"""Library documentation:\n' +\
@@ -111,6 +149,7 @@ class TestSuite(object):
         self.selected_library = None
         self.library_index = 1
         self.generated_errors = 0
+        self.external_resource_used = 0
 
     def _create_keyword_txt(self):
         return """\
@@ -146,17 +185,29 @@ My Keyword
         return self.test_count
 
     def get_test_depth(self):
-        return self.avg_test_depth + random.choice([-1, 0, 1])
+        return self.avg_test_depth + randomizer._get_random_int(-1,1)
 
     def is_error_generated(self):
-        if self.test_validity < 1 and random.random() > (self.test_validity * 1.0):
+        if self.test_validity < 1 and randomizer._random() > (self.test_validity * 1.0):
             self.error_count += 1
             return True
         return False
 
+    def is_external_resource_used(self):
+        if self.external_resource_used == 0:
+            return False
+        else:
+            return True
+
+    def add_external_keyword(self):
+        if self.external_resource_count > 0:
+            self.external_resource_used += 1
+            return _add_external_keyword()
+        return ""
+
     def select_library(self):
-        self.selected_library = random.choice(self.available_libraries)[0]
-        self.available_keywords = _sql_select("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String') ORDER BY RANDOM()" % self.selected_library)
+        self.selected_library = randomizer._choice(self.available_libraries)
+        self.available_keywords = _sql_select("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String')" % self.selected_library)
         if not self.is_library_in_use(self.selected_library):
             self.add_library_in_use(self.selected_library, self.next_free)
         return self.selected_library
@@ -166,7 +217,7 @@ My Keyword
         return self.library_index+1
 
     def add_library_in_use(self, library_value, tc = 1):
-        use_with_name = random.choice([True, False])
+        use_with_name = randomizer._choice([True, False])
         library_key = library_value
         if use_with_name:
             library_key = "Cus%d" % tc
@@ -184,12 +235,14 @@ My Keyword
     def insert_test_step(self):
         test_txt = ""
         generate_error = self.is_error_generated()
-        kw1 = random.choice(self.available_keywords)
-        kw_library = kw1[2]
+        keyword = randomizer._choice(self.available_keywords)
+        kw_library = keyword[2]
+        kw_action = keyword[1].replace("_", " ")
+        kw_args = keyword[3]
+        kw_return = keyword[4]
         for key, val in self.get_libraries().iteritems():
             if val == kw_library:
                 kw_library = key
-        kw_action = kw1[1].replace("_", " ")
         if generate_error:
             kw_action += "_X"
             self.generated_errors += 1
@@ -197,12 +250,10 @@ My Keyword
             kw_total = kw_action
         else:
             kw_total = "%s.%s" % (kw_library, kw_action)
-        kw_args = kw1[3]
-        kw_return = kw1[4]
         argument = None
         return_statement = None
         if kw_args == 1:
-            argument = _get_random_name().lower()
+            argument = randomizer._get_random_name().lower()
         if kw_return == 1:
             return_statement = "${ret}="
         test_txt += "\t\t"
@@ -226,10 +277,10 @@ My Keyword
         return ""
 
     def tag_test_suite(self):
-        suite_tag = random.choice(common_tags)
-        test_tag = random.choice(common_tags)
-        if test_tag != suite_tag and random.choice([1, 2]) == 1:
-            return "\n\t[Tags]\t%s\n" % test_tag
+        suite_tag = randomizer._choice(common_tags)
+        test_tag = randomizer._choice(common_tags)
+        if test_tag != suite_tag and randomizer._get_random_int(1,2) == 1:
+            return "\t[Tags]\t%s\n" % test_tag
         return ""
 
 def _select_functionality():
@@ -239,31 +290,18 @@ def _select_functionality():
                        "\t\t\tfor filename in filenames:\n" +\
                        "\t\t\t\tprint os.path.join(dirname, filename)\n"
     sleeper = "time.sleep(1)\n"
-    return random.choice([directory_looper, sleeper, "pass\n"])
+    return randomizer._choice([directory_looper, sleeper, "pass\n"])
 
 
 def _sql_execute(sqlString=""):
-    global db_cursor
     db_cursor.execute(sqlString)
 
 
-def _sql_select(sqlString=""):
-    global db_cursor
-    return db_cursor.execute(sqlString).fetchall()
-
-
-def _get_random_name(prefix=""):
-    global words
-
-    random_name = random.choice(words).strip().capitalize()
-    return "%s%s" % (prefix, random_name)
-
-
-def _get_random_verb(prefix=""):
-    global verbs
-
-    verb = random.choice(verbs)
-    return "%s%s" % (prefix, verb)
+def _sql_select(sqlString="", normalize=False):
+    result = db_cursor.execute(sqlString).fetchall()
+    if not normalize:
+        return result
+    return [i[0] for i in result]
 
 
 def _create_test_libraries(dirs, filecount = 10, keywords=10):
@@ -289,9 +327,9 @@ def _add_external_keyword():
 
 def _create_test_structure(dirs, filecount = 1, test_count = 20, avg_test_depth = 5, test_validity = 1):
     path = dirs[0]
-    available_resources = _sql_select("SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()")
-    available_external_resources = _sql_select("SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()")
-    available_libraries = _sql_select("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'")
+    available_resources = _sql_select("SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()", True)
+    available_external_resources = _sql_select("SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()", True)
+    available_libraries = _sql_select("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'", True)
 
     for test_index in range(filecount):
         suite = TestSuite(path, test_index, available_libraries, avg_test_depth, test_validity, test_count, len(available_external_resources))
@@ -305,9 +343,9 @@ def _create_test_structure(dirs, filecount = 1, test_count = 20, avg_test_depth 
         settings_txt += "Library\tOperatingSystem\n"
         settings_txt += "Library\tString\n"
         settings_txt += suite.get_force_tag()
-        for x in range(random.randint(0,2)):
+        for x in range(randomizer._get_random_int(0,2)):
             try:
-                selected_resource = available_resources.pop()[0]
+                selected_resource = available_resources.pop()
                 settings_txt += "Resource\t%s\n" % selected_resource
             except IndexError:
                 break
@@ -319,18 +357,17 @@ def _create_test_structure(dirs, filecount = 1, test_count = 20, avg_test_depth 
         suite.write()
 
 
-
 def _construct_test_suite(suite):
     test_txt = "*** Test Cases ***\n"
     for tc in range(suite.get_test_count()):
         selected_library = suite.select_library()
-        tc_name = "Test %s in %s #%d" % (_get_random_verb(), selected_library.split("CustomLib")[1], tc)
+        tc_name = "Test %s in %s #%d" % (randomizer._get_random_verb(), selected_library.split("CustomLib")[1], tc)
         test_txt += "%s\t[Documentation]\t%s\n" % (
-            tc_name, "Test %d - %s\\n\\n%s" % (tc, strftime("%d.%m.%Y %H:%M:%S"), _get_random_name()))
+            tc_name, "Test %d - %s\\n\\n%s" % (tc, "USING SEED %d" % randomizer.get_seed(), randomizer._get_random_name()))
         test_txt += suite.tag_test_suite()
         for i in range(suite.get_test_depth()):
-            if suite.get_external_resource_count() > 0:
-                test_txt += _add_external_keyword()
+            if suite.external_resource_count > 0 and not suite.is_external_resource_used():
+                test_txt += suite.add_external_keyword()
             test_txt += suite.insert_test_step()
         test_txt += suite.force_one_error_or_not(tc)
         test_txt += "\n"
@@ -340,7 +377,6 @@ def _construct_test_suite(suite):
 def _create_static_resource_files(target_dir, filename = "static_external_resource.txt", count = 1):
     external_info = {}
 
-    print "target_dir", target_dir
     if not os.path.exists(target_dir):
         os.makedirs(target_dir)
 
@@ -349,7 +385,7 @@ def _create_static_resource_files(target_dir, filename = "static_external_resour
     static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
     static_external_resource.close()
     external_info['filepath'] = os.path.join(target_dir, "ext_R%d_Resource.txt")
-    external_info['import_path'] = os.path.join("..", "..", "ext", "ext_R%d_Resource.txt")
+    external_info['import_path'] = os.path.join("..", "ext", "ext_R%d_Resource.txt")
     external_info['filename'] = static_external_resource_filename
 
     return external_info
@@ -363,7 +399,7 @@ def _create_resource_file(target_dir, subdir = "", id = 1):
     res_info['import_path'] = res_info['filename']
     if subdir != "":
         full_path += subdir + os.sep
-        res_info['import_path'] = subdir + "${/}" + res_info['filename']
+        res_info['import_path'] = os.path.join(subdir,res_info['filename'])
     if not os.path.exists(full_path):
         os.makedirs(full_path)
 
@@ -382,15 +418,15 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
 
         content = "*** Settings ***\n"
         if external_resources > 0:
-            content += "Resource\t" + (".." + os.sep + ext_info['import_path'] % (random.randint(1,external_resources))) + "\n"
+            content += "Resource\t" + (".." + os.sep + ext_info['import_path'] % (randomizer._get_random_int(1,external_resources))) + "\n"
 
         content += "\n*** Variables ***\n"
         for x in range(variable_count):
-            content += "%-25s%10s%d\n" % ("${%s%d}" % (_get_random_name(),x),"",random.randint(1,1000))
+            content += "%-25s%10s%d\n" % ("${%s%d}" % (randomizer._get_random_name(),x),"",randomizer._get_random_int(1,1000))
 
         content += "\n*** Keywords ***\n"
         for x in range(keyword_count):
-            kw_name = "Resource %s User Kw %d" % (_get_random_name(), x+1)
+            kw_name = "Resource %s User Kw %d" % (randomizer._get_random_name(), x+1)
             content += "%s\n\tNo Operation\n" % (kw_name)
             _sql_execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name, res_info['import_path']))
         _sql_execute("INSERT INTO source (path,type) VALUES ('%s','RESOURCE')" % res_info['import_path'])
@@ -428,6 +464,16 @@ def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=
     _create_test_resources(dirs,subdir="resources", resource_files=resource_count, resources_in_file=resources_in_file, external_resources=external_resources)
     _create_test_structure(dirs, filecount=testsuite_count, test_count=tests_in_suite, avg_test_depth=avg_test_depth,test_validity=test_validity)
 
+    print """\
+
+    Seed was %d""" % randomizer.get_seed()
+
+    fo_seed = open(os.path.join(dirs[2], "seed.txt"),"w")
+    fo_seed.write("%d" % randomizer.get_seed())
+    fo_seed.close()
+
+
+
 
 def create_options_parser():
     desc = """This script generates Robot Framework project structure. The structure contains test suites,
@@ -449,7 +495,8 @@ You can define number of test cases in suites, resources in a resource files or 
     group1.add_option("-r", "--resources", dest="resources",help="Number of resources in a file.  [default: %default]", default=30)
     group1.add_option("-v", "--validity", dest="validity",help="Validity of test cases (1...0). To have ~80% passes give 0.8.  [default: %default]", default=1)
     group1.add_option("-e", "--testdepth", dest="testdepth", help="Average number of steps in a test case (2..)  [default: %default]", default=3)
-    group2.add_option("-d", "--dir", dest="dir",help="Target directory for the test project [default: %default]", default="theproject")
+    group2.add_option("-d", "--dir", dest="dir",help="Target directory for the test project [default: %default]", default=os.path.join(".","tmp"))
+    group2.add_option("", "--seed", dest="seed", help="Give a random seed (integer) to generate specific test structure. By default this is randomized.", default=None)
     group2.add_option("-u", "--upgrade", help="Upgrade rfgen.py from the github. Remember 'pip install with --upgrade' if you have pip installation.", action="store_true", dest="upgrade", default=False)
 
     parser.add_option_group(group1)
@@ -459,7 +506,7 @@ You can define number of test cases in suites, resources in a resource files or 
 
 
 def main(options = None):
-    global db_connection, db_cursor, words
+    global db_connection, db_cursor, words, randomizer
 
     parser = create_options_parser()
     (options, args) = parser.parse_args()
@@ -489,6 +536,8 @@ def main(options = None):
     test_validity= float(options.validity) or 1
     external_resources = int(options.externalresources) or 0
 
+    randomizer = Randomizer(options.seed)
+
     if avg_test_depth < 2:
         avg_test_depth = 2
     if test_validity > 1:
@@ -496,8 +545,8 @@ def main(options = None):
     elif test_validity < 0:
         test_validity = 0
 
-    project_root_dir = os.path.join(".","tmp",path,"testdir")
-    external_resources_dir = os.path.join(".","tmp","ext")
+    project_root_dir = os.path.join(path,"testdir")
+    external_resources_dir = os.path.join(path,"ext")
     sys.path.append(project_root_dir)
     shutil.rmtree(project_root_dir, ignore_errors=True)
     shutil.rmtree(external_resources_dir, ignore_errors=True)
@@ -523,7 +572,7 @@ def main(options = None):
     except OperationalError, err:
         print "DB error: ",err
 
-    _create_test_project([project_root_dir,external_resources_dir],testlibs_count,keyword_count,testsuite_count,tests_in_suite,resource_count,
+    _create_test_project([project_root_dir,external_resources_dir,path],testlibs_count,keyword_count,testsuite_count,tests_in_suite,resource_count,
         resources_in_file,avg_test_depth,test_validity,external_resources)
     result = "PASS"
     return result != 'FAIL'
