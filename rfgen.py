@@ -94,7 +94,8 @@ class TestLibrary:
     def __init__(self, path):
         self.lib_path = path
         self.lib_prefix = "CustomLib"
-        self.lib_name = randomizer._get_random_name(self.lib_prefix)
+        self.lib_functionality = randomizer._get_random_name()
+        self.lib_name = "%s%s" % (self.lib_prefix, self.lib_functionality)
         _sql_execute("INSERT INTO source (path,type) VALUES ('%s','CUSTOMLIBRARY')" % self.lib_name)
         self.lib_file = open("%s/%s.py" % (self.lib_path,self.lib_name),"w")
         self.lib_doc = '\t"""Library documentation:\n' +\
@@ -113,7 +114,7 @@ class TestLibrary:
         else:
             kw_name_prefix = "KW_%d" % self.kw_count
         self.kw_count += 1
-        kw_name = kw_name_prefix + "_" + self.lib_prefix
+        kw_name = kw_name_prefix + "_" + self.lib_functionality
         _sql_execute("INSERT INTO keywords (name,source) VALUES ('%s','%s')" % (kw_name,self.lib_name))
         kw_doc = '"""Keyword documentation for %s"""' % kw_name
         self.write("\tdef %s(self):\n" % kw_name +\
