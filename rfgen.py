@@ -20,7 +20,7 @@ import sys
 import sqlite3
 from sqlite3 import OperationalError
 import copy
-from time import strftime, time
+from time import time
 import urllib2
 
 ROOT = os.path.dirname(__file__)
@@ -133,14 +133,12 @@ class TestLibrary:
 
 class TestSuite(object):
 
-    def __init__(self, path, test_index, available_libraries, avg_test_depth, test_validity, test_count, external_resource_count):
+    def __init__(self, path, test_index, avg_test_depth, test_validity, test_count):
         self.path = path
         self.test_index = test_index
-        self.available_libraries = available_libraries
         self.avg_test_depth = avg_test_depth
         self.test_validity = test_validity
         self.test_count = test_count
-        self.external_resource_count = external_resource_count
         self.libraries_in_use = {}
         self.suite_tag = None
         self.error_count = 0
@@ -151,11 +149,15 @@ class TestSuite(object):
         self.library_index = 1
         self.generated_errors = 0
         self.external_resource_used = 0
+        self.available_external_resources = _sql_select("SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()", True)
+        self.available_libraries = _sql_select("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'", True)
+        self.available_resources = _sql_select("SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()", True)
+        self.external_resource_count = len(self.available_external_resources)
 
     def _create_keyword_txt(self):
         return """\
 *** Keywords ***
-My Keyword
+My Suite Keyword
     No Operation
 """
 
@@ -229,10 +231,6 @@ My Keyword
             return True
         return False
 
-    def set_content(self, settings_txt, test_txt):
-        self.settings_txt = settings_txt
-        self.test_txt = test_txt
-
     def insert_test_step(self):
         test_txt = ""
         generate_error = self.is_error_generated()
@@ -284,6 +282,66 @@ My Keyword
             return "\t[Tags]\t%s\n" % test_tag
         return ""
 
+    def _construct_settings(self):
+        self.settings_txt += "*** Settings ***\n"
+        self.settings_txt += keyword_and_arguments("Documentation", """http://www.google.fi
+...\t\t
+...\t\tSuite documentation test added from RIDE.
+...\t\t
+...\t\tThe new *bolded* _underscore_ line.""")
+        self.settings_txt += keyword_and_arguments("Suite Setup","Log", "Suite Setup")
+        self.settings_txt += keyword_and_arguments("Suite Teardown","Log", "Suite Teardown")
+        self.settings_txt += keyword_and_arguments("Test Setup","Log", "Test Setup")
+        self.settings_txt += keyword_and_arguments("Test Teardown","Log", "Test Teardown")
+        self.settings_txt += keyword_and_arguments("Test Template","My Suite Keyword")
+        self.settings_txt += keyword_and_arguments("Test Timeout","1 min")
+
+        for test_lib_key,test_lib_value in self.get_libraries().iteritems():
+            if test_lib_key != test_lib_value:
+                self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value, "WITH NAME", test_lib_key)
+            else:
+                self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value)
+        self.settings_txt += keyword_and_arguments("Library", "OperatingSystem")
+        self.settings_txt += keyword_and_arguments("Library", "String")
+        self.settings_txt += self.get_force_tag()
+        self.settings_txt += keyword_and_arguments("Metadata","seed","%d" % randomizer.get_seed())
+
+        for x in range(randomizer._get_random_int(0,2)):
+            try:
+                selected_resource = self.available_resources.pop()
+                self.settings_txt += keyword_and_arguments("Resource",selected_resource)
+            except IndexError:
+                break
+                # USE ALL EXTERNAL RESOURCES
+        for res in self.available_external_resources:
+            self.settings_txt += keyword_and_arguments("Resource",res)
+        self.settings_txt += "\n"
+
+
+    def _construct_variables(self):
+        self.settings_txt += "*** Variables ***\n"
+        self.settings_txt += keyword_and_arguments("${suite_scalar_variable}","abcd123")
+        self.settings_txt += keyword_and_arguments("@{suite_list_variable}","x","y","z")
+        self.settings_txt += "\n"
+
+    def construct(self):
+        self._construct_settings()
+        self._construct_variables()
+
+        self.test_txt = "*** Test Cases ***\n"
+        for tc in range(self.get_test_count()):
+            selected_library = self.select_library()
+            tc_name = "Test %s in %s #%d" % (randomizer._get_random_verb(), selected_library.split("CustomLib")[1], tc)
+            self.test_txt += "%s\t[Documentation]\t%s\n" % (
+                tc_name, "Test %d - %s\\n\\n%s" % (tc, "test level documentation", randomizer._get_random_name()))
+            self.test_txt += self.tag_test_suite()
+            for i in range(self.get_test_depth()):
+                if self.external_resource_count > 0 and not self.is_external_resource_used():
+                    self.test_txt += self.add_external_keyword()
+                self.test_txt += self.insert_test_step()
+            self.test_txt += self.force_one_error_or_not(tc)
+            self.test_txt += "\n"
+
 def _select_functionality():
     directory_looper = "for dirname, dirnames, filenames in os.walk('.'):\n" +\
                        "\t\t\tfor subdirname in dirnames:\n" +\
@@ -326,53 +384,13 @@ def _add_external_keyword():
     return test_txt
 
 
-def _create_test_structure(dirs, filecount = 1, test_count = 20, avg_test_depth = 5, test_validity = 1):
+def _create_test_suites(dirs, filecount = 1, test_count = 20, avg_test_depth = 5, test_validity = 1):
     path = dirs[0]
-    available_resources = _sql_select("SELECT path FROM source WHERE type = 'RESOURCE' ORDER BY RANDOM()", True)
-    available_external_resources = _sql_select("SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()", True)
-    available_libraries = _sql_select("SELECT path FROM source WHERE type = 'CUSTOMLIBRARY'", True)
 
     for test_index in range(filecount):
-        suite = TestSuite(path, test_index, available_libraries, avg_test_depth, test_validity, test_count, len(available_external_resources))
-        test_txt = _construct_test_suite(suite)
-        settings_txt = "*** Settings ***\n"
-        for testlib_key,testlib_value in suite.get_libraries().iteritems():
-            if testlib_key != testlib_value:
-                settings_txt += "Library\t%s.py\tWITH NAME\t%s\n" % (testlib_value, testlib_key)
-            else:
-                settings_txt += "Library\t%s.py\n" % (testlib_value)
-        settings_txt += "Library\tOperatingSystem\n"
-        settings_txt += "Library\tString\n"
-        settings_txt += suite.get_force_tag()
-        for x in range(randomizer._get_random_int(0,2)):
-            try:
-                selected_resource = available_resources.pop()
-                settings_txt += "Resource\t%s\n" % selected_resource
-            except IndexError:
-                break
-                # USE ALL EXTERNAL RESOURCES
-        for res in available_external_resources:
-            settings_txt += "Resource\t%s\n" % res
-        settings_txt += "\n"
-        suite.set_content(settings_txt, test_txt)
+        suite = TestSuite(path, test_index, avg_test_depth, test_validity, test_count)
+        suite.construct()
         suite.write()
-
-
-def _construct_test_suite(suite):
-    test_txt = "*** Test Cases ***\n"
-    for tc in range(suite.get_test_count()):
-        selected_library = suite.select_library()
-        tc_name = "Test %s in %s #%d" % (randomizer._get_random_verb(), selected_library.split("CustomLib")[1], tc)
-        test_txt += "%s\t[Documentation]\t%s\n" % (
-            tc_name, "Test %d - %s\\n\\n%s" % (tc, "USING SEED %d" % randomizer.get_seed(), randomizer._get_random_name()))
-        test_txt += suite.tag_test_suite()
-        for i in range(suite.get_test_depth()):
-            if suite.external_resource_count > 0 and not suite.is_external_resource_used():
-                test_txt += suite.add_external_keyword()
-            test_txt += suite.insert_test_step()
-        test_txt += suite.force_one_error_or_not(tc)
-        test_txt += "\n"
-    return test_txt
 
 
 def _create_static_resource_files(target_dir, filename = "static_external_resource.txt", count = 1):
@@ -463,7 +481,7 @@ def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=
 
     _create_test_libraries(dirs, filecount=testlibs_count, keywords=keyword_count)
     _create_test_resources(dirs,subdir="resources", resource_files=resource_count, resources_in_file=resources_in_file, external_resources=external_resources)
-    _create_test_structure(dirs, filecount=testsuite_count, test_count=tests_in_suite, avg_test_depth=avg_test_depth,test_validity=test_validity)
+    _create_test_suites(dirs, filecount=testsuite_count, test_count=tests_in_suite, avg_test_depth=avg_test_depth,test_validity=test_validity)
 
     print """\
 
@@ -505,6 +523,8 @@ You can define number of test cases in suites, resources in a resource files or 
 
     return parser
 
+def keyword_and_arguments(kw, *args):
+    return "%s\t%s\n" % (kw, "\t".join(args))
 
 def main(options = None):
     global db_connection, db_cursor, words, randomizer
