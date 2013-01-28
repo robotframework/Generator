@@ -144,9 +144,10 @@ class TestSuite(object):
         self.error_count = 0
         self.keywords_txt = self._create_keyword_txt()
         self.settings_txt = ""
+        self.variables_txt = ""
         self.test_txt = ""
         self.selected_library = None
-        self.library_index = 1
+        self.library_index = 0
         self.generated_errors = 0
         self.external_resource_used = 0
         self.available_external_resources = _sql_select("SELECT path FROM source WHERE type = 'EXT_RESOURCE' ORDER BY RANDOM()", True)
@@ -158,12 +159,14 @@ class TestSuite(object):
         return """\
 *** Keywords ***
 My Suite Keyword
+    [Arguments]    ${something}
     No Operation
 """
 
     def write(self):
         with open("%s/T%d_CustomTests.txt" % (self.path, self.test_index + 1), "w") as tcfile:
-            tcfile.write(self.settings_txt)
+            tcfile.write(self.settings_txt + "\n")
+            tcfile.write(self.variables_txt + "\n")
             tcfile.write(self.test_txt)
             tcfile.write(self.keywords_txt)
 
@@ -211,25 +214,21 @@ My Suite Keyword
     def select_library(self):
         self.selected_library = randomizer._choice(self.available_libraries)
         self.available_keywords = _sql_select("SELECT * FROM keywords WHERE source IN ('%s','BuiltIn','OperatingSystem','String')" % self.selected_library)
-        if not self.is_library_in_use(self.selected_library):
-            self.add_library_in_use(self.selected_library, self.next_free)
-        return self.selected_library
+        if self.selected_library not in self.libraries_in_use.values():
+            self.add_library_in_use(self.selected_library)
 
     @property
     def next_free(self):
-        return self.library_index+1
+        self.library_index += 1
+        return self.library_index
 
-    def add_library_in_use(self, library_value, tc = 1):
+    def add_library_in_use(self, library_value):
         use_with_name = randomizer._choice([True, False])
         library_key = library_value
         if use_with_name:
-            library_key = "Cus%d" % tc
+            library_key = "Cus%d" % self.next_free
         self.libraries_in_use[library_key] = library_value
 
-    def is_library_in_use(self, library):
-        if library in self.libraries_in_use.values():
-            return True
-        return False
 
     def insert_test_step(self):
         test_txt = ""
@@ -261,8 +260,8 @@ My Suite Keyword
         test_txt += "\t%s" % kw_total
         if argument:
             if kw_action == "Count Files In Directory":
-                test_txt += "\t" + os.path.abspath(os.curdir)
-                test_txt += "\tabsolute=True"
+                test_txt += "\t" + os.path.abspath(os.curdir).replace("\\","/")
+                #test_txt += "\tabsolute=True"
             else:
                 test_txt += "\t" + argument
         test_txt += "\n"
@@ -293,14 +292,13 @@ My Suite Keyword
         self.settings_txt += keyword_and_arguments("Suite Teardown","Log", "Suite Teardown")
         self.settings_txt += keyword_and_arguments("Test Setup","Log", "Test Setup")
         self.settings_txt += keyword_and_arguments("Test Teardown","Log", "Test Teardown")
-        self.settings_txt += keyword_and_arguments("Test Template","My Suite Keyword")
         self.settings_txt += keyword_and_arguments("Test Timeout","1 min")
 
-        for test_lib_key,test_lib_value in self.get_libraries().iteritems():
-            if test_lib_key != test_lib_value:
-                self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value, "WITH NAME", test_lib_key)
-            else:
-                self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value)
+        #for test_lib_key,test_lib_value in self.get_libraries().iteritems():
+        #    if test_lib_key != test_lib_value:
+        #        self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value, "WITH NAME", test_lib_key)
+        #    else:
+        #        self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value)
         self.settings_txt += keyword_and_arguments("Library", "OperatingSystem")
         self.settings_txt += keyword_and_arguments("Library", "String")
         self.settings_txt += self.get_force_tag()
@@ -315,14 +313,12 @@ My Suite Keyword
                 # USE ALL EXTERNAL RESOURCES
         for res in self.available_external_resources:
             self.settings_txt += keyword_and_arguments("Resource",res)
-        self.settings_txt += "\n"
 
 
     def _construct_variables(self):
-        self.settings_txt += "*** Variables ***\n"
-        self.settings_txt += keyword_and_arguments("${suite_scalar_variable}","abcd123")
-        self.settings_txt += keyword_and_arguments("@{suite_list_variable}","x","y","z")
-        self.settings_txt += "\n"
+        self.variables_txt += "*** Variables ***\n"
+        self.variables_txt += keyword_and_arguments("${suite_scalar_variable}","abcd123")
+        self.variables_txt += keyword_and_arguments("@{suite_list_variable}","x","y","z")
 
     def construct(self):
         self._construct_settings()
@@ -330,8 +326,8 @@ My Suite Keyword
 
         self.test_txt = "*** Test Cases ***\n"
         for tc in range(self.get_test_count()):
-            selected_library = self.select_library()
-            tc_name = "Test %s in %s #%d" % (randomizer._get_random_verb(), selected_library.split("CustomLib")[1], tc)
+            self.select_library()
+            tc_name = "Test %s in %s #%d" % (randomizer._get_random_verb(), self.selected_library.split("CustomLib")[1], tc)
             self.test_txt += "%s\t[Documentation]\t%s\n" % (
                 tc_name, "Test %d - %s\\n\\n%s" % (tc, "test level documentation", randomizer._get_random_name()))
             self.test_txt += self.tag_test_suite()
@@ -341,6 +337,12 @@ My Suite Keyword
                 self.test_txt += self.insert_test_step()
             self.test_txt += self.force_one_error_or_not(tc)
             self.test_txt += "\n"
+
+        for test_lib_key,test_lib_value in self.get_libraries().iteritems():
+            if test_lib_key != test_lib_value:
+                self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value, "WITH NAME", test_lib_key)
+            else:
+                self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value)
 
 def _select_functionality():
     directory_looper = "for dirname, dirnames, filenames in os.walk('.'):\n" +\
@@ -404,7 +406,7 @@ def _create_static_resource_files(target_dir, filename = "static_external_resour
     static_external_resource.write("*** Keywords ***\nMy Super KW\n\tNo Operation")
     static_external_resource.close()
     external_info['filepath'] = os.path.join(target_dir, "ext_R%d_Resource.txt")
-    external_info['import_path'] = os.path.join("..", "ext", "ext_R%d_Resource.txt")
+    external_info['import_path'] = os.path.join("..", "ext", "ext_R%d_Resource.txt").replace("\\","/")
     external_info['filename'] = static_external_resource_filename
 
     return external_info
@@ -415,9 +417,9 @@ def _create_resource_file(target_dir, subdir = "", id = 1):
     res_info['filename'] = "R%d_Resource.txt" % id
 
     full_path = os.path.join(target_dir, subdir)
-    res_info['import_path'] = res_info['filename']
+    res_info['import_path'] = res_info['filename'].replace("\\","/")
     if subdir != "":
-        res_info['import_path'] = os.path.join(subdir,res_info['filename'])
+        res_info['import_path'] = os.path.join(subdir,res_info['filename']).replace("\\","/")
     if not os.path.exists(full_path):
         os.makedirs(full_path)
 
@@ -436,7 +438,7 @@ def _create_test_resources(dirs, resource_files, resources_in_file, external_res
 
         content = "*** Settings ***\n"
         if external_resources > 0:
-            content += "Resource\t" + (".." + os.sep + ext_info['import_path'] % (randomizer._get_random_int(1,external_resources))) + "\n"
+            content += "Resource\t" + (os.path.join("../",ext_info['import_path']) % (randomizer._get_random_int(1,external_resources))) + "\n"
 
         content += "\n*** Variables ***\n"
         for x in range(variable_count):
