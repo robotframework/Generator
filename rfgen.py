@@ -421,7 +421,7 @@ def _create_resource_file(target_dir, subdir = "", id = 1):
     if not os.path.exists(full_path):
         os.makedirs(full_path)
 
-    res_info['filepath'] = full_path
+    res_info['filepath'] = os.path.join(full_path, res_info['filename'])
     return res_info
 
 
