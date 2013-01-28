@@ -414,15 +414,14 @@ def _create_resource_file(target_dir, subdir = "", id = 1):
     res_info = {}
     res_info['filename'] = "R%d_Resource.txt" % id
 
-    full_path = target_dir + os.sep
+    full_path = os.path.join(target_dir, subdir)
     res_info['import_path'] = res_info['filename']
     if subdir != "":
-        full_path += subdir + os.sep
         res_info['import_path'] = os.path.join(subdir,res_info['filename'])
     if not os.path.exists(full_path):
         os.makedirs(full_path)
 
-    res_info['filepath'] = "%s%s" % (full_path, res_info['filename'])
+    res_info['filepath'] = full_path
     return res_info
 
 
