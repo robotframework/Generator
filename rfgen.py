@@ -55,13 +55,9 @@ class Randomizer():
 
     def _get_random_name(self, prefix=""):
         return self._choice(words, capitalize=True, prefix=prefix)
-        #random_name = words[self.random.randint(0,self.len_of_words-1)].strip().capitalize()
-        #return "%s%s" % (prefix, random_name)
 
     def _get_random_verb(self, prefix=""):
         return self._choice(verbs, capitalize=False, prefix=prefix)
-        #verb = verbs[self.random.randint(0, self.len_of_verbs-1)].strip()
-        #return "%s%s" % (prefix, verb)
 
     def _get_random_int(self, start, end):
         return self.random.randint(start,end)
@@ -125,8 +121,6 @@ class TestLibrary:
         self.lib_file.write(text)
 
     def close(self):
-        global db_connection
-
         db_connection.commit()
         self.write("myinstance = %s()" % self.lib_name)
         self.lib_file.close()
