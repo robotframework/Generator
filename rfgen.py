@@ -255,7 +255,6 @@ My Suite Keyword
         if argument:
             if kw_action == "Count Files In Directory":
                 test_txt += "\t" + os.path.abspath(os.curdir).replace("\\","/")
-                #test_txt += "\tabsolute=True"
             else:
                 test_txt += "\t" + argument
         test_txt += "\n"
@@ -287,12 +286,6 @@ My Suite Keyword
         self.settings_txt += keyword_and_arguments("Test Setup","Log", "Test Setup")
         self.settings_txt += keyword_and_arguments("Test Teardown","Log", "Test Teardown")
         self.settings_txt += keyword_and_arguments("Test Timeout","1 min")
-
-        #for test_lib_key,test_lib_value in self.get_libraries().iteritems():
-        #    if test_lib_key != test_lib_value:
-        #        self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value, "WITH NAME", test_lib_key)
-        #    else:
-        #        self.settings_txt += keyword_and_arguments("Library","%s.py" % test_lib_value)
         self.settings_txt += keyword_and_arguments("Library", "OperatingSystem")
         self.settings_txt += keyword_and_arguments("Library", "String")
         self.settings_txt += self.get_force_tag()
@@ -487,8 +480,6 @@ def _create_test_project(dirs,testlibs_count=5,keyword_count=10,testsuite_count=
     fo_seed.close()
 
 
-
-
 def create_options_parser():
     desc = """This script generates Robot Framework project structure. The structure contains test suites,
 resource files and test libraries. Test suites and tests are randomly marked with tags.
@@ -518,8 +509,10 @@ You can define number of test cases in suites, resources in a resource files or 
 
     return parser
 
+
 def keyword_and_arguments(kw, *args):
     return "%s\t%s\n" % (kw, "\t".join(args))
+
 
 def main(options = None):
     global db_connection, db_cursor, words, randomizer
@@ -592,7 +585,6 @@ def main(options = None):
         resources_in_file,avg_test_depth,test_validity,external_resources)
     result = "PASS"
     return result != 'FAIL'
-
 
 
 # Global variables
